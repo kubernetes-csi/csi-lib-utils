@@ -28,6 +28,21 @@ func TestStripSecrets(t *testing.T) {
 	secretName := "secret-abc"
 	secretValue := "123"
 	createVolume := &csi.CreateVolumeRequest{
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				&csi.Topology{
+					Segments: map[string]string{
+						"foo": "bar",
+						"x":   "y",
+					},
+				},
+				&csi.Topology{
+					Segments: map[string]string{
+						"a": "b",
+					},
+				},
+			},
+		},
 		Name: "foo",
 		VolumeCapabilities: []*csi.VolumeCapability{
 			&csi.VolumeCapability{
@@ -55,7 +70,7 @@ func TestStripSecrets(t *testing.T) {
 		{"hello world", `"hello world"`},
 		{true, "true"},
 		{false, "false"},
-		{createVolume, `{"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
+		{createVolume, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
 
 		// There is currently no test case that can verify
 		// that recursive stripping works, because there is no
