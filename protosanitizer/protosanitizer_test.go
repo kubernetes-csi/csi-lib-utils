@@ -147,12 +147,12 @@ func TestStripSecrets(t *testing.T) {
 	}
 
 	cases := []testcase{
-		{nil, "null"},
+		{nil, "<nil>"},
 		{1, "1"},
 		{"hello world", `"hello world"`},
 		{true, "true"},
 		{false, "false"},
-		{&csi.CreateVolumeRequest{}, `{}`},
+		{&csi.CreateVolumeRequest{}, `<>`},
 		// Test case from https://github.com/kubernetes-csi/csi-lib-utils/pull/1#pullrequestreview-180126394.
 		{&csi.CreateVolumeRequest{
 			Name: "test-volume",
@@ -177,13 +177,11 @@ func TestStripSecrets(t *testing.T) {
 			Parameters:                map[string]string{"param1": "param1", "param2": "param2"},
 			VolumeContentSource:       &csi.VolumeContentSource{},
 			AccessibilityRequirements: &csi.TopologyRequirement{},
-		}, `{"accessibility_requirements":{},"capacity_range":{"limit_bytes":1024,"required_bytes":1024},"name":"test-volume","parameters":{"param1":"param1","param2":"param2"},"secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4","mount_flags":["flag1","flag2","flag3"]}},"access_mode":{"mode":5}}],"volume_content_source":{"Type":null}}`},
-		{createVolume, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
-		{createVolumeCSI03, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"controller_create_secrets":"***stripped***","name":"foo","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
-		{&csitest.CreateVolumeRequest{}, `{}`},
+		}, `<accessibility_requirements:<> capacity_range:<limit_bytes:1024 required_bytes:1024> name:"test-volume" parameters:<param1:"param1" param2:"param2"> secrets:***stripped*** volume_capabilities:[<AccessType:<Mount:<fs_type:"ext4" mount_flags:["flag1" "flag2" "flag3"]>> access_mode:<mode:5>>] volume_content_source:<Type:<nil>>>`},
+		{createVolume, `<accessibility_requirements:<requisite:[<segments:<foo:"bar" x:"y">> <segments:<a:"b">>]> capacity_range:<required_bytes:1024> name:"foo" secrets:***stripped*** volume_capabilities:[<AccessType:<Mount:<fs_type:"ext4">>>]>`},
+		{createVolumeCSI03, `<accessibility_requirements:<requisite:[<segments:<foo:"bar" x:"y">> <segments:<a:"b">>]> capacity_range:<required_bytes:1024> controller_create_secrets:***stripped*** name:"foo" volume_capabilities:[<AccessType:<Mount:<fs_type:"ext4">>>]>`},
 		{createVolumeFuture,
-			`{"capacity_range":{"required_bytes":1024},"maybe_secret_map":{"1":{"AccessType":null,"array_secret":"***stripped***"},"2":{"AccessType":null,"array_secret":"***stripped***"}},"name":"foo","new_secret_int":"***stripped***","seecreets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}},"array_secret":"***stripped***"},{"AccessType":null,"array_secret":"***stripped***"}],"volume_content_source":{"Type":{"Volume":{"oneof_secret_field":"***stripped***","volume_id":"abc"}},"nested_secret_field":"***stripped***"}}`,
-		},
+			`<capacity_range:<required_bytes:1024> maybe_secret_map:<"1":<AccessType:<nil> array_secret:***stripped***> "2":<AccessType:<nil> array_secret:***stripped***>> name:"foo" new_secret_int:***stripped*** seecreets:***stripped*** volume_capabilities:[<AccessType:<Mount:<fs_type:"ext4">> array_secret:***stripped***> <AccessType:<nil> array_secret:***stripped***>] volume_content_source:<Type:<Volume:<oneof_secret_field:***stripped*** volume_id:"abc">> nested_secret_field:***stripped***>>`},
 	}
 
 	// Message from revised spec as received by a sidecar based on the current spec.
@@ -193,7 +191,7 @@ func TestStripSecrets(t *testing.T) {
 	if assert.NoError(t, err, "marshall future message") &&
 		assert.NoError(t, proto.Unmarshal(data, unknownFields), "unmarshal with unknown fields") {
 		cases = append(cases, testcase{unknownFields,
-			`{"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}},{"AccessType":null}],"volume_content_source":{"Type":{"Volume":{"volume_id":"abc"}}}}`,
+			`<capacity_range:<required_bytes:1024> name:"foo" secrets:***stripped*** volume_capabilities:[<AccessType:<Mount:<fs_type:"ext4">>> <AccessType:<nil>>] volume_content_source:<Type:<Volume:<volume_id:"abc">>>>`,
 		})
 	}
 

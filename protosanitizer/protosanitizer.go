@@ -19,10 +19,13 @@ limitations under the License.
 package protosanitizer
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/golang/protobuf/descriptor"
@@ -34,7 +37,7 @@ import (
 
 // StripSecrets returns a wrapper around the original CSI gRPC message
 // which has a Stringer implementation that serializes the message
-// as one-line JSON, but without including secret information.
+// similar to gRPC, but without including secret information.
 // Instead of the secret value(s), the string "***stripped***" is
 // included in the result.
 //
@@ -53,6 +56,12 @@ func StripSecrets(msg interface{}) fmt.Stringer {
 // for CSI 1.0, use StripSecrets for that.
 func StripSecretsCSI03(msg interface{}) fmt.Stringer {
 	return &stripSecrets{msg, isCSI03Secret}
+}
+
+type stripped struct{}
+
+func (s stripped) String() string {
+	return "***stripped***"
 }
 
 type stripSecrets struct {
@@ -79,11 +88,64 @@ func (s *stripSecrets) String() string {
 	}
 
 	// Re-encoded the stripped representation and return that.
-	b, err = json.Marshal(parsed)
-	if err != nil {
-		return fmt.Sprintf("<<json.Marshal %T: %s>>", s.msg, err)
+	var buf bytes.Buffer
+	marshal(&buf, parsed)
+	return buf.String()
+}
+
+// marshall is mimicking the output of the compact text marshaller
+// from https://github.com/golang/protobuf/blob/master/proto/text.go. It
+// can't be exactly the same because it works on the result of json.Unmarshal
+// into generic types (map, array, int/string/bool).
+func marshal(out io.Writer, parsed interface{}) {
+	switch parsed := parsed.(type) {
+	case map[string]interface{}:
+		out.Write([]byte("<"))
+		var keys []string
+		for k := range parsed {
+			keys = append(keys, k)
+		}
+		// Ensure consistent alphabetic ordering.
+		// Ordering by field number would be nicer, but we don't
+		// have that information here.
+		sort.Strings(keys)
+		for i, k := range keys {
+			if isFieldName(k) {
+				// No quotation marks round simple
+				// strings that are likely to be field
+				// names. We can't be sure 100%,
+				// because both structs and real maps
+				// end up as maps after
+				// json.Unmarshal.
+				out.Write([]byte(k))
+			} else {
+				out.Write([]byte(fmt.Sprintf("%q", k)))
+			}
+			out.Write([]byte(":"))
+			marshal(out, parsed[k])
+			// Avoid redundant space after last element.
+			if i+1 < len(keys) {
+				out.Write([]byte(" "))
+			}
+		}
+		out.Write([]byte(">"))
+	case []interface{}:
+		// gRPC uses < for repeating elements. We use
+		// [ ] because it is a bit more readable.
+		out.Write([]byte("["))
+		for i, v := range parsed {
+			marshal(out, v)
+			// Avoid redundant space after last element.
+			if i+1 < len(parsed) {
+				out.Write([]byte(" "))
+			}
+		}
+		out.Write([]byte("]"))
+	case string:
+		fmt.Fprintf(out, "%q", parsed)
+	default:
+		fmt.Fprint(out, parsed)
 	}
-	return string(b)
 }
 
 // isFieldName returns true for strings that start with a-zA-Z and
@@ -120,7 +182,7 @@ func (s *stripSecrets) strip(parsed interface{}, msg interface{}) error {
 			if s.isSecretField(field) {
 				// Overwrite only if already set.
 				if _, ok := parsedFields[field.GetName()]; ok {
-					parsedFields[field.GetName()] = "***stripped***"
+					parsedFields[field.GetName()] = stripped{}
 				}
 				continue
 			}
