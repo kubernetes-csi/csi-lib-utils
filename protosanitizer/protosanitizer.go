@@ -22,12 +22,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/golang/protobuf/descriptor"
 	"github.com/golang/protobuf/proto"
 	protobuf "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	protobufdescriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/pkg/errors"
 )
 
 // StripSecrets returns a wrapper around the original CSI gRPC message
@@ -72,7 +74,9 @@ func (s *stripSecrets) String() string {
 	}
 
 	// Now remove secrets from the generic representation of the message.
-	s.strip(parsed, s.msg)
+	if err := s.strip(parsed, s.msg); err != nil {
+		return fmt.Sprintf("<<error: %s>>", err)
+	}
 
 	// Re-encoded the stripped representation and return that.
 	b, err = json.Marshal(parsed)
@@ -82,18 +86,26 @@ func (s *stripSecrets) String() string {
 	return string(b)
 }
 
-func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
+// isFieldName returns true for strings that start with a-zA-Z and
+// are followed by those, digits or underscore.
+func isFieldName(str string) bool {
+	return fieldNameRe.MatchString(str)
+}
+
+var fieldNameRe = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9_]*`)
+
+func (s *stripSecrets) strip(parsed interface{}, msg interface{}) error {
 	protobufMsg, ok := msg.(descriptor.Message)
 	if !ok {
-		// Not a protobuf message, so we are done.
-		return
+		// Not a protobuf message, nothing to strip.
+		return nil
 	}
 
 	// The corresponding map in the parsed JSON representation.
 	parsedFields, ok := parsed.(map[string]interface{})
 	if !ok {
-		// Probably nil.
-		return
+		// Probably nil, nothing to strip.
+		return nil
 	}
 
 	// Walk through all fields and replace those with ***stripped*** that
@@ -110,42 +122,128 @@ func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
 				if _, ok := parsedFields[field.GetName()]; ok {
 					parsedFields[field.GetName()] = "***stripped***"
 				}
-			} else if field.GetType() == protobuf.FieldDescriptorProto_TYPE_MESSAGE {
-				// When we get here,
-				// the type name is something like ".csi.v1.CapacityRange" (leading dot!)
-				// and looking up "csi.v1.CapacityRange"
-				// returns the type of a pointer to a pointer
-				// to CapacityRange. We need a pointer to such
-				// a value for recursive stripping.
-				typeName := field.GetTypeName()
-				if strings.HasPrefix(typeName, ".") {
-					typeName = typeName[1:]
-				}
-				t := proto.MessageType(typeName)
-				if t == nil || t.Kind() != reflect.Ptr {
-					// Shouldn't happen, but
-					// better check anyway instead
-					// of panicking.
+				continue
+			}
+
+			// Not stripped. Decide whether we need to
+			// recursively strip the message(s) that the
+			// field contains.
+
+			if field.GetType() != protobuf.FieldDescriptorProto_TYPE_MESSAGE {
+				// No need to recurse into plain types.
+				continue
+			}
+
+			// When we get here, the type name is something
+			// like ".csi.v1.CapacityRange" (leading dot!)
+			// and looking up "csi.v1.CapacityRange"
+			// returns the type of a pointer to a pointer
+			// to CapacityRange. We need a pointer to such
+			// a value for recursive stripping.
+			typeName := field.GetTypeName()
+			if strings.HasPrefix(typeName, ".") {
+				typeName = typeName[1:]
+			}
+			t := proto.MessageType(typeName)
+			// Shouldn't happen, but better check
+			// anyway instead of panicking.
+			if t == nil {
+				return errors.Errorf("%s: unknown type", typeName)
+			}
+			var v reflect.Value
+			switch t.Kind() {
+			case reflect.Map:
+				ptrType := t.Elem()
+				if ptrType.Kind() != reflect.Ptr {
+					// map to plain type, nothing to recurse into
 					continue
 				}
-				v := reflect.New(t.Elem())
+				v = reflect.New(t.Elem().Elem())
+			case reflect.Ptr:
+				v = reflect.New(t.Elem())
+			default:
+				return errors.Errorf("%s: has no elements", typeName)
+			}
+			i := v.Interface()
 
-				// Recursively strip the message(s) that
-				// the field contains.
-				i := v.Interface()
-				entry := parsedFields[field.GetName()]
-				if slice, ok := entry.([]interface{}); ok {
-					// Array of values, like VolumeCapabilities in CreateVolumeRequest.
-					for _, entry := range slice {
-						s.strip(entry, i)
-					}
-				} else {
-					// Single value.
-					s.strip(entry, i)
+			if field.OneofIndex != nil {
+				// A oneof field doesn't have json tags in the generated .pb.go.
+				// Therefore the parsedFields is different and we need to recurse differently:
+				// - the entry is named like the Go field (upper first character, no underscores)
+				// - it contains a map with the name of the individual candidates, again
+				//   with Go naming
+				// Example for proto field "volume" inside "VolumeContentSource":
+				// map[string]interface {} [
+				//    "Type": map[string]interface {} [
+				//       "Volume": *(*"interface {}")(0xc4201c0988),
+				//    ],
+				// ]
+				if len(md.OneofDecl) <= int(*field.OneofIndex) {
+					// Shouldn't happen, bail out.
+					return errors.Errorf("invalid oneof index in %v", field)
 				}
+				oneof := md.OneofDecl[int(*field.OneofIndex)]
+				if oneof.Name == nil {
+					return errors.Errorf("invalid oneof for %s, no name: %v", typeName, oneof)
+				}
+				jsonName := upperFirst(*oneof.Name)
+				entry, ok := parsedFields[jsonName]
+				if !ok || entry == nil {
+					// Not set.
+					continue
+				}
+				oneofMap, ok := entry.(map[string]interface{})
+				if !ok {
+					return errors.Errorf("unexpected type %T in JSON for %s", entry, typeName)
+				}
+				if field.JsonName == nil {
+					return errors.Errorf("invalid field %v, no name", field)
+				}
+				entry, ok = oneofMap[upperFirst(*field.JsonName)]
+				if !ok {
+					// Oneof does not contain this particular field.
+					continue
+				}
+				// Finally recurse into a particular oneof value.
+				if err := s.strip(entry, i); err != nil {
+					return errors.Wrap(err, typeName)
+				}
+				continue
+			}
+
+			entry := parsedFields[field.GetName()]
+			if slice, ok := entry.([]interface{}); ok {
+				// Array of values, like VolumeCapabilities in CreateVolumeRequest.
+				for _, entry := range slice {
+					if err := s.strip(entry, i); err != nil {
+						return errors.Wrap(err, typeName)
+					}
+				}
+				continue
+			}
+			if mapping, ok := entry.(map[string]interface{}); ok {
+				// All maps in protobuf are string to something maps in JSON.
+				for _, entry := range mapping {
+					if err := s.strip(entry, i); err != nil {
+						return errors.Wrap(err, typeName)
+					}
+				}
+			}
+
+			// Single value.
+			if err := s.strip(entry, i); err != nil {
+				return errors.Wrap(err, typeName)
 			}
 		}
 	}
+	return nil
+}
+
+func upperFirst(str string) string {
+	if len(str) >= 2 {
+		return strings.ToUpper(str[:1]) + str[1:]
+	}
+	return strings.ToUpper(str)
 }
 
 // isCSI1Secret uses the csi.E_CsiSecret extension from CSI 1.0 to

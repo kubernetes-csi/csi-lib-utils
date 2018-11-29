@@ -182,11 +182,7 @@ func TestStripSecrets(t *testing.T) {
 		{createVolumeCSI03, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"controller_create_secrets":"***stripped***","name":"foo","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
 		{&csitest.CreateVolumeRequest{}, `{}`},
 		{createVolumeFuture,
-			// Secrets are *not* removed from all fields yet. This will have to be fixed one way or another
-			// before the CSI spec can start using secrets there (currently it doesn't).
-			// The test is still useful because it shows that also complicated fields get serialized.
-			// `{"capacity_range":{"required_bytes":1024},"maybe_secret_map":{"1":{"AccessType":null,"array_secret":"***stripped***"},"2":{"AccessType":null,"array_secret":"***stripped***"}},"name":"foo","new_secret_int":"***stripped***","seecreets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}},"array_secret":"***stripped***"},{"AccessType":null,"array_secret":"***stripped***"}],"volume_content_source":{"Type":{"Volume":{"oneof_secret_field":"***stripped***","volume_id":"abc"}},"nested_secret_field":"***stripped***"}}`,
-			`{"capacity_range":{"required_bytes":1024},"maybe_secret_map":{"1":{"AccessType":null,"array_secret":"aaa"},"2":{"AccessType":null,"array_secret":"bbb"}},"name":"foo","new_secret_int":"***stripped***","seecreets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}},"array_secret":"***stripped***"},{"AccessType":null,"array_secret":"***stripped***"}],"volume_content_source":{"Type":{"Volume":{"oneof_secret_field":"hello","volume_id":"abc"}},"nested_secret_field":"***stripped***"}}`,
+			`{"capacity_range":{"required_bytes":1024},"maybe_secret_map":{"1":{"AccessType":null,"array_secret":"***stripped***"},"2":{"AccessType":null,"array_secret":"***stripped***"}},"name":"foo","new_secret_int":"***stripped***","seecreets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}},"array_secret":"***stripped***"},{"AccessType":null,"array_secret":"***stripped***"}],"volume_content_source":{"Type":{"Volume":{"oneof_secret_field":"***stripped***","volume_id":"abc"}},"nested_secret_field":"***stripped***"}}`,
 		},
 	}
 
