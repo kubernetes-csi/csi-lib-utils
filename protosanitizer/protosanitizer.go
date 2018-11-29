@@ -95,7 +95,10 @@ func strip(parsed interface{}, msg interface{}) {
 		for _, field := range fields {
 			ex, err := proto.GetExtension(field.Options, csi.E_CsiSecret)
 			if err == nil && ex != nil && *ex.(*bool) {
-				parsedFields[field.GetName()] = "***stripped***"
+				// Overwrite only if already set.
+				if _, ok := parsedFields[field.GetName()]; ok {
+					parsedFields[field.GetName()] = "***stripped***"
+				}
 			} else if field.GetType() == protobuf.FieldDescriptorProto_TYPE_MESSAGE {
 				// When we get here,
 				// the type name is something like ".csi.v1.CapacityRange" (leading dot!)

@@ -70,6 +70,7 @@ func TestStripSecrets(t *testing.T) {
 		{"hello world", `"hello world"`},
 		{true, "true"},
 		{false, "false"},
+		{&csi.CreateVolumeRequest{}, `{}`},
 		// Test case from https://github.com/kubernetes-csi/csi-lib-utils/pull/1#pullrequestreview-180126394.
 		{&csi.CreateVolumeRequest{
 			Name: "test-volume",
