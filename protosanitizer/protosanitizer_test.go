@@ -70,6 +70,31 @@ func TestStripSecrets(t *testing.T) {
 		{"hello world", `"hello world"`},
 		{true, "true"},
 		{false, "false"},
+		// Test case from https://github.com/kubernetes-csi/csi-lib-utils/pull/1#pullrequestreview-180126394.
+		{&csi.CreateVolumeRequest{
+			Name: "test-volume",
+			CapacityRange: &csi.CapacityRange{
+				RequiredBytes: int64(1024),
+				LimitBytes:    int64(1024),
+			},
+			VolumeCapabilities: []*csi.VolumeCapability{
+				&csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "ext4",
+							MountFlags: []string{"flag1", "flag2", "flag3"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+			},
+			Secrets:                   map[string]string{"secret1": "secret1", "secret2": "secret2"},
+			Parameters:                map[string]string{"param1": "param1", "param2": "param2"},
+			VolumeContentSource:       &csi.VolumeContentSource{},
+			AccessibilityRequirements: &csi.TopologyRequirement{},
+		}, `{"accessibility_requirements":{},"capacity_range":{"limit_bytes":1024,"required_bytes":1024},"name":"test-volume","parameters":{"param1":"param1","param2":"param2"},"secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4","mount_flags":["flag1","flag2","flag3"]}},"access_mode":{"mode":5}}],"volume_content_source":{"Type":null}}`},
 		{createVolume, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
 
 		// There is currently no test case that can verify
