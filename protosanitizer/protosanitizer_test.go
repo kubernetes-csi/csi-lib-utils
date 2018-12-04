@@ -22,6 +22,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/proto"
+	csi03 "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csi03"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csitest"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,6 +30,42 @@ import (
 func TestStripSecrets(t *testing.T) {
 	secretName := "secret-abc"
 	secretValue := "123"
+
+	// CSI 0.3.0.
+	createVolumeCSI03 := &csi03.CreateVolumeRequest{
+		AccessibilityRequirements: &csi03.TopologyRequirement{
+			Requisite: []*csi03.Topology{
+				&csi03.Topology{
+					Segments: map[string]string{
+						"foo": "bar",
+						"x":   "y",
+					},
+				},
+				&csi03.Topology{
+					Segments: map[string]string{
+						"a": "b",
+					},
+				},
+			},
+		},
+		Name: "foo",
+		VolumeCapabilities: []*csi03.VolumeCapability{
+			&csi03.VolumeCapability{
+				AccessType: &csi03.VolumeCapability_Mount{
+					Mount: &csi03.VolumeCapability_MountVolume{
+						FsType: "ext4",
+					},
+				},
+			},
+		},
+		CapacityRange: &csi03.CapacityRange{
+			RequiredBytes: 1024,
+		},
+		ControllerCreateSecrets: map[string]string{
+			secretName:   secretValue,
+			"secret-xyz": "987",
+		},
+	}
 
 	// Current spec.
 	createVolume := &csi.CreateVolumeRequest{
@@ -142,6 +179,7 @@ func TestStripSecrets(t *testing.T) {
 			AccessibilityRequirements: &csi.TopologyRequirement{},
 		}, `{"accessibility_requirements":{},"capacity_range":{"limit_bytes":1024,"required_bytes":1024},"name":"test-volume","parameters":{"param1":"param1","param2":"param2"},"secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4","mount_flags":["flag1","flag2","flag3"]}},"access_mode":{"mode":5}}],"volume_content_source":{"Type":null}}`},
 		{createVolume, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
+		{createVolumeCSI03, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"controller_create_secrets":"***stripped***","name":"foo","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
 		{&csitest.CreateVolumeRequest{}, `{}`},
 		{createVolumeFuture,
 			// Secrets are *not* removed from all fields yet. This will have to be fixed one way or another
@@ -165,7 +203,12 @@ func TestStripSecrets(t *testing.T) {
 
 	for _, c := range cases {
 		before := fmt.Sprint(c.original)
-		stripped := StripSecrets(c.original)
+		var stripped fmt.Stringer
+		if _, ok := c.original.(*csi03.CreateVolumeRequest); ok {
+			stripped = StripSecretsCSI03(c.original)
+		} else {
+			stripped = StripSecrets(c.original)
+		}
 		if assert.Equal(t, c.stripped, fmt.Sprintf("%s", stripped), "unexpected result for fmt s of %s", c.original) {
 			assert.Equal(t, c.stripped, fmt.Sprintf("%v", stripped), "unexpected result for fmt v of %s", c.original)
 		}

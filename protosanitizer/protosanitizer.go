@@ -36,15 +36,27 @@ import (
 // Instead of the secret value(s), the string "***stripped***" is
 // included in the result.
 //
+// StripSecrets relies on an extension in CSI 1.0 and thus can only
+// be used for messages based on that or a more recent spec!
+//
 // StripSecrets itself is fast and therefore it is cheap to pass the
 // result to logging functions which may or may not end up serializing
 // the parameter depending on the current log level.
 func StripSecrets(msg interface{}) fmt.Stringer {
-	return &stripSecrets{msg}
+	return &stripSecrets{msg, isCSI1Secret}
+}
+
+// StripSecretsCSI03 is like StripSecrets, except that it works
+// for messages based on CSI 0.3 and older. It does not work
+// for CSI 1.0, use StripSecrets for that.
+func StripSecretsCSI03(msg interface{}) fmt.Stringer {
+	return &stripSecrets{msg, isCSI03Secret}
 }
 
 type stripSecrets struct {
 	msg interface{}
+
+	isSecretField func(field *protobuf.FieldDescriptorProto) bool
 }
 
 func (s *stripSecrets) String() string {
@@ -60,7 +72,7 @@ func (s *stripSecrets) String() string {
 	}
 
 	// Now remove secrets from the generic representation of the message.
-	strip(parsed, s.msg)
+	s.strip(parsed, s.msg)
 
 	// Re-encoded the stripped representation and return that.
 	b, err = json.Marshal(parsed)
@@ -70,7 +82,7 @@ func (s *stripSecrets) String() string {
 	return string(b)
 }
 
-func strip(parsed interface{}, msg interface{}) {
+func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
 	protobufMsg, ok := msg.(descriptor.Message)
 	if !ok {
 		// Not a protobuf message, so we are done.
@@ -93,8 +105,7 @@ func strip(parsed interface{}, msg interface{}) {
 	fields := md.GetField()
 	if fields != nil {
 		for _, field := range fields {
-			ex, err := proto.GetExtension(field.Options, csi.E_CsiSecret)
-			if err == nil && ex != nil && *ex.(*bool) {
+			if s.isSecretField(field) {
 				// Overwrite only if already set.
 				if _, ok := parsedFields[field.GetName()]; ok {
 					parsedFields[field.GetName()] = "***stripped***"
@@ -126,13 +137,26 @@ func strip(parsed interface{}, msg interface{}) {
 				if slice, ok := entry.([]interface{}); ok {
 					// Array of values, like VolumeCapabilities in CreateVolumeRequest.
 					for _, entry := range slice {
-						strip(entry, i)
+						s.strip(entry, i)
 					}
 				} else {
 					// Single value.
-					strip(entry, i)
+					s.strip(entry, i)
 				}
 			}
 		}
 	}
+}
+
+// isCSI1Secret uses the csi.E_CsiSecret extension from CSI 1.0 to
+// determine whether a field contains secrets.
+func isCSI1Secret(field *protobuf.FieldDescriptorProto) bool {
+	ex, err := proto.GetExtension(field.Options, csi.E_CsiSecret)
+	return err == nil && ex != nil && *ex.(*bool)
+}
+
+// isCSI03Secret relies on the naming convention in CSI <= 0.3
+// to determine whether a field contains secrets.
+func isCSI03Secret(field *protobuf.FieldDescriptorProto) bool {
+	return strings.HasSuffix(field.GetName(), "_secrets")
 }
