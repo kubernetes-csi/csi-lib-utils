@@ -24,10 +24,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/descriptor"
 	"github.com/golang/protobuf/proto"
 	protobuf "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer/csi10"
 )
 
 // StripSecrets returns a wrapper around the original CSI gRPC message

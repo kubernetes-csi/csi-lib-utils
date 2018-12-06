@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/proto"
+	csi "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/csi10"
 	csi03 "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csi03"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csitest"
 	"github.com/stretchr/testify/assert"
