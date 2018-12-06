@@ -27,7 +27,7 @@ import (
 	"github.com/golang/protobuf/descriptor"
 	"github.com/golang/protobuf/proto"
 	protobuf "github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer/csi10"
+	protobufdescriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
 )
 
 // StripSecrets returns a wrapper around the original CSI gRPC message
@@ -151,8 +151,23 @@ func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
 // isCSI1Secret uses the csi.E_CsiSecret extension from CSI 1.0 to
 // determine whether a field contains secrets.
 func isCSI1Secret(field *protobuf.FieldDescriptorProto) bool {
-	ex, err := proto.GetExtension(field.Options, csi.E_CsiSecret)
+	ex, err := proto.GetExtension(field.Options, e_CsiSecret)
 	return err == nil && ex != nil && *ex.(*bool)
+}
+
+// Copied from the CSI 1.0 spec (https://github.com/container-storage-interface/spec/blob/37e74064635d27c8e33537c863b37ccb1182d4f8/lib/go/csi/csi.pb.go#L4520-L4527)
+// to avoid a package dependency that would prevent usage of this package
+// in repos using an older version of the spec.
+//
+// Future revision of the CSI spec must not change this extensions, otherwise
+// they will break filtering in binaries based on the 1.0 version of the spec.
+var e_CsiSecret = &proto.ExtensionDesc{
+	ExtendedType:  (*protobufdescriptor.FieldOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1059,
+	Name:          "csi.v1.csi_secret",
+	Tag:           "varint,1059,opt,name=csi_secret,json=csiSecret",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
 }
 
 // isCSI03Secret relies on the naming convention in CSI <= 0.3
