@@ -1,6 +1,10 @@
 # Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
 # for detailed Gopkg.toml documentation.
 
+[[override]]
+  name = "github.com/container-storage-interface/spec"
+  version = "v1.0.0"
+
 [prune]
   go-tests = true
   unused-packages = true
