@@ -5,3 +5,23 @@
   go-tests = true
   non-go = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/container-storage-interface/spec"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/kubernetes-csi/csi-test"
+  version = "v1.1.0"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.17.0"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "1.2.0"
+
+[[constraint]]
+  name = "github.com/golang/mock"
+  version = "v1.2.0"
