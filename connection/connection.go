@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"k8s.io/klog"
 )
 
 const (
@@ -102,7 +102,7 @@ func connect(address string, dialOptions []grpc.DialOption, connectOptions []Opt
 			if haveConnected && !lostConnection {
 				// We have detected a loss of connection for the first time. Decide what to do...
 				// Record this once. TODO (?): log at regular time intervals.
-				glog.Errorf("Lost connection to %s.", address)
+				klog.Errorf("Lost connection to %s.", address)
 				// Inform caller and let it decide? Default is to reconnect.
 				if o.reconnect != nil {
 					reconnect = o.reconnect()
@@ -124,7 +124,7 @@ func connect(address string, dialOptions []grpc.DialOption, connectOptions []Opt
 		return nil, errors.New("OnConnectionLoss callback only supported for unix:// addresses")
 	}
 
-	glog.Infof("Connecting to %s", address)
+	klog.Infof("Connecting to %s", address)
 
 	// Connect in background.
 	var conn *grpc.ClientConn
@@ -143,7 +143,7 @@ func connect(address string, dialOptions []grpc.DialOption, connectOptions []Opt
 	for {
 		select {
 		case <-ticker.C:
-			glog.Warningf("Still connecting to %s", address)
+			klog.Warningf("Still connecting to %s", address)
 
 		case <-ready:
 			return conn, err
@@ -153,10 +153,10 @@ func connect(address string, dialOptions []grpc.DialOption, connectOptions []Opt
 
 // LogGRPC is gPRC unary interceptor for logging of CSI messages at level 5. It removes any secrets from the message.
 func LogGRPC(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	glog.V(5).Infof("GRPC call: %s", method)
-	glog.V(5).Infof("GRPC request: %s", protosanitizer.StripSecrets(req))
+	klog.V(5).Infof("GRPC call: %s", method)
+	klog.V(5).Infof("GRPC request: %s", protosanitizer.StripSecrets(req))
 	err := invoker(ctx, method, req, reply, cc, opts...)
-	glog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
-	glog.V(5).Infof("GRPC error: %v", err)
+	klog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
+	klog.V(5).Infof("GRPC error: %v", err)
 	return err
 }
