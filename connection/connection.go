@@ -19,10 +19,12 @@ package connection
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
 	"k8s.io/klog"
@@ -159,4 +161,19 @@ func LogGRPC(ctx context.Context, method string, req, reply interface{}, cc *grp
 	klog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
 	klog.V(5).Infof("GRPC error: %v", err)
 	return err
+}
+
+func GetDriverName(ctx context.Context, conn *grpc.ClientConn) (string, error) {
+	client := csi.NewIdentityClient(conn)
+
+	req := csi.GetPluginInfoRequest{}
+	rsp, err := client.GetPluginInfo(ctx, &req)
+	if err != nil {
+		return "", err
+	}
+	name := rsp.GetName()
+	if name == "" {
+		return "", fmt.Errorf("driver name is empty")
+	}
+	return name, nil
 }

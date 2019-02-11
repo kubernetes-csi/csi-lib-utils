@@ -1,6 +1,10 @@
 # Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
 # for detailed Gopkg.toml documentation.
 
+[[constraint]]
+  name = "github.com/container-storage-interface/spec"
+  version = "1.0.0"
+
 [prune]
   go-tests = true
   non-go = true
