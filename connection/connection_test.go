@@ -18,6 +18,7 @@ package connection
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -33,6 +34,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 func tmpDir(t *testing.T) string {
@@ -48,11 +51,14 @@ const (
 // startServer creates a gRPC server without any registered services.
 // The returned address can be used to connect to it. The cleanup
 // function stops it. It can be called multiple times.
-func startServer(t *testing.T, tmp string) (string, func()) {
+func startServer(t *testing.T, tmp string, identity csi.IdentityServer) (string, func()) {
 	addr := path.Join(tmp, serverSock)
 	listener, err := net.Listen("unix", addr)
 	require.NoError(t, err, "listening on %s", addr)
 	server := grpc.NewServer()
+	if identity != nil {
+		csi.RegisterIdentityServer(server, identity)
+	}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -73,7 +79,7 @@ func startServer(t *testing.T, tmp string) (string, func()) {
 func TestConnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp)
+	addr, stopServer := startServer(t, tmp, nil)
 	defer stopServer()
 
 	conn, err := Connect(addr)
@@ -88,7 +94,7 @@ func TestConnect(t *testing.T) {
 func TestConnectUnix(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp)
+	addr, stopServer := startServer(t, tmp, nil)
 	defer stopServer()
 
 	conn, err := Connect("unix:///" + addr)
@@ -129,7 +135,7 @@ func TestWaitForServer(t *testing.T) {
 		t.Logf("sleeping %s before starting server", delay)
 		time.Sleep(delay)
 		startTimeServer = time.Now()
-		_, stopServer = startServer(t, tmp)
+		_, stopServer = startServer(t, tmp, nil)
 	}()
 	conn, err := Connect(path.Join(tmp, serverSock))
 	if assert.NoError(t, err, "connect via absolute path") {
@@ -163,7 +169,7 @@ func TestTimout(t *testing.T) {
 func TestReconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp)
+	addr, stopServer := startServer(t, tmp, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -190,7 +196,7 @@ func TestReconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp)
+		_, stopServer = startServer(t, tmp, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -208,7 +214,7 @@ func TestReconnect(t *testing.T) {
 func TestDisconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp)
+	addr, stopServer := startServer(t, tmp, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -239,7 +245,7 @@ func TestDisconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp)
+		_, stopServer = startServer(t, tmp, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -259,7 +265,7 @@ func TestDisconnect(t *testing.T) {
 func TestExplicitReconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp)
+	addr, stopServer := startServer(t, tmp, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -290,7 +296,7 @@ func TestExplicitReconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp)
+		_, stopServer = startServer(t, tmp, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -305,4 +311,88 @@ func TestExplicitReconnect(t *testing.T) {
 
 		assert.Equal(t, 1, reconnectCount, "connection loss callback should be called once")
 	}
+}
+
+func TestGetDriverName(t *testing.T) {
+	tests := []struct {
+		name        string
+		output      *csi.GetPluginInfoResponse
+		injectError bool
+		expectError bool
+	}{
+		{
+			name: "success",
+			output: &csi.GetPluginInfoResponse{
+				Name:          "csi/example",
+				VendorVersion: "0.2.0",
+				Manifest: map[string]string{
+					"hello": "world",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:        "gRPC error",
+			output:      nil,
+			injectError: true,
+			expectError: true,
+		},
+		{
+			name: "empty name",
+			output: &csi.GetPluginInfoResponse{
+				Name: "",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			out := test.output
+			var injectedErr error
+			if test.injectError {
+				injectedErr = fmt.Errorf("mock error")
+			}
+
+			tmp := tmpDir(t)
+			defer os.RemoveAll(tmp)
+			identity := &identityServer{out, injectedErr}
+			addr, stopServer := startServer(t, tmp, identity)
+			defer func() {
+				stopServer()
+			}()
+
+			conn, err := Connect(addr)
+
+			name, err := GetDriverName(context.Background(), conn)
+			if test.expectError && err == nil {
+				t.Errorf("test %q: Expected error, got none", test.name)
+			}
+			if !test.expectError && err != nil {
+				t.Errorf("test %q: got error: %v", test.name, err)
+			}
+			if err == nil && name != "csi/example" {
+				t.Errorf("got unexpected name: %q", name)
+			}
+		})
+	}
+}
+
+type identityServer struct {
+	response *csi.GetPluginInfoResponse
+	err      error
+}
+
+var _ csi.IdentityServer = &identityServer{}
+
+func (i *identityServer) GetPluginCapabilities(context.Context, *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+	return nil, fmt.Errorf("Not implemented")
+}
+
+func (i *identityServer) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+	return i.response, i.err
+}
+
+func (i *identityServer) Probe(context.Context, *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	return nil, fmt.Errorf("Not implemented")
 }
