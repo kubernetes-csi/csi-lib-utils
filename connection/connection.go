@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ const (
 	// Interval of logging connection errors
 	connectionLoggingInterval = 10 * time.Second
 )
+
+const terminationLogPath = "/dev/termination-log"
 
 // Connect opens insecure gRPC connection to a CSI driver. Address must be either absolute path to UNIX domain socket
 // file or have format '<protocol>://', following gRPC name resolution mechanism at
@@ -63,11 +66,24 @@ type Option func(o *options)
 
 // OnConnectionLoss registers a callback that will be invoked when the
 // connection got lost. If that callback returns true, the connection
-// is restablished. Otherwise the connection is left as it is and
+// is reestablished. Otherwise the connection is left as it is and
 // all future gRPC calls using it will fail with status.Unavailable.
 func OnConnectionLoss(reconnect func() bool) Option {
 	return func(o *options) {
 		o.reconnect = reconnect
+	}
+}
+
+// ExitOnConnectionLoss returns callback for OnConnectionLoss() that writes
+// an error to /dev/termination-log and exits.
+func ExitOnConnectionLoss() func() bool {
+	return func() bool {
+		terminationMsg := "Lost connection to CSI driver, exiting"
+		if err := ioutil.WriteFile(terminationLogPath, []byte(terminationMsg), 0644); err != nil {
+			klog.Errorf("%s: %s", terminationLogPath, err)
+		}
+		klog.Fatalf(terminationMsg)
+		return false
 	}
 }
 
