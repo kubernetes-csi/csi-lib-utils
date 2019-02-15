@@ -58,7 +58,7 @@ const terminationLogPath = "/dev/termination-log"
 // For other connections, the default behavior from gRPC is used and
 // loss of connection is not detected reliably.
 func Connect(address string, options ...Option) (*grpc.ClientConn, error) {
-	return connect(address, []grpc.DialOption{}, options)
+	return connect(address, options)
 }
 
 // Option is the type of all optional parameters for Connect.
@@ -71,6 +71,14 @@ type Option func(o *options)
 func OnConnectionLoss(reconnect func() bool) Option {
 	return func(o *options) {
 		o.reconnect = reconnect
+	}
+}
+
+// WithTimeout sets the connection timeout duration
+// If not specified, all connections will retry forever.
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.timeout = timeout
 	}
 }
 
@@ -89,21 +97,28 @@ func ExitOnConnectionLoss() func() bool {
 
 type options struct {
 	reconnect func() bool
+	timeout   time.Duration
 }
 
 // connect is the internal implementation of Connect. It has more options to enable testing.
-func connect(address string, dialOptions []grpc.DialOption, connectOptions []Option) (*grpc.ClientConn, error) {
+func connect(address string, connectOptions []Option) (*grpc.ClientConn, error) {
 	var o options
 	for _, option := range connectOptions {
 		option(&o)
 	}
 
+	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions,
 		grpc.WithInsecure(),                   // Don't use TLS, it's usually local Unix domain socket in a container.
 		grpc.WithBackoffMaxDelay(time.Second), // Retry every second after failure.
 		grpc.WithBlock(),                      // Block until connection succeeds.
 		grpc.WithUnaryInterceptor(LogGRPC),    // Log all messages.
 	)
+
+	if o.timeout != 0 {
+		dialOptions = append(dialOptions, grpc.WithTimeout(o.timeout))
+	}
+
 	unixPrefix := "unix://"
 	if strings.HasPrefix(address, "/") {
 		// It looks like filesystem path.

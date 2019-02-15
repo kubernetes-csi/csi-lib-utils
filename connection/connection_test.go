@@ -150,13 +150,13 @@ func TestWaitForServer(t *testing.T) {
 	}
 }
 
-func TestTimout(t *testing.T) {
+func TestConnectWithTimout(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
 
 	startTime := time.Now()
-	timeout := 5 * time.Second
-	conn, err := connect(path.Join(tmp, "no-such.sock"), []grpc.DialOption{grpc.WithTimeout(timeout)}, nil)
+	timeout := 1 * time.Second
+	conn, err := Connect(path.Join(tmp, "no-such.sock"), WithTimeout(timeout))
 	endTime := time.Now()
 	if assert.Error(t, err, "connection should fail") {
 		assert.InEpsilon(t, timeout, endTime.Sub(startTime), 1, "connection timeout")
