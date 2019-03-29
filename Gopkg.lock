@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  digest = "1:94ffc0947c337d618b6ff5ed9abaddc1217b090c1b3a1ae4739b35b7b25851d5"
+  digest = "1:7f21fa1f8ab9a529dba26a7e9cf20de217c307fa1d96cb599d3afd9e5c83e9d6"
   name = "github.com/container-storage-interface/spec"
   packages = ["lib/go/csi"]
   pruneopts = "NUT"
-  revision = "ed0bb0e1557548aa028307f48728767cfe8f6345"
-  version = "v1.0.0"
+  revision = "f750e6765f5f6b4ac0e13e95214d58901290fb4b"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -118,15 +118,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:058e9504b9a79bfe86092974d05bb3298d2aa0c312d266d43148de289a5065d9"
+  digest = "1:bbe51412d9915d64ffaa96b51d409e070665efc5194fcf145c4a27d4133107a4"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = "NUT"
-  revision = "a1f597ede03a7bef967a422b5b3a5bd08805a01e"
+  revision = "a5d413f7728c81fb97d96a2b722368945f651e78"
 
 [[projects]]
   branch = "master"
-  digest = "1:7c35448236ff7720a4c38f0b2d8221c6d288dc92a19f4b5dbabd0def65e60664"
+  digest = "1:8750c495cba39e0d2402c424760734a695d4ab91579374f0624f411d52cda1a6"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -139,29 +139,29 @@
     "trace",
   ]
   pruneopts = "NUT"
-  revision = "9f648a60d9775ef5c977e7669d1673a7a67bef33"
+  revision = "74de082e2cca95839e88aa0aeee5aadf6ce7710f"
 
 [[projects]]
   branch = "master"
-  digest = "1:13d575ad6576f56693a410e77830da614005f87955e7cd2ac6afbf9b54afd651"
+  digest = "1:4d25d388c9ad5169b31c1a6f16cc7bcdb856489958e99f2123d8d8cdf000d7eb"
   name = "golang.org/x/oauth2"
   packages = [
     ".",
     "internal",
   ]
   pruneopts = "NUT"
-  revision = "e64efc72b421e893cbf63f17ba2221e7d6d0b0f3"
+  revision = "c85d3e98c914e3a33234ad863dcbff5dbc425bb8"
 
 [[projects]]
   branch = "master"
-  digest = "1:50aeabe186087f314dd3cd64e1f460a4090886f34338caad1ec80090faa74458"
+  digest = "1:af393301820919efc2288c08608a9aab90a3b293aa64e65a06739b7edbb7082f"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "fead79001313d15903fb4605b4a1b781532cd93e"
+  revision = "9eb1bfa1ce65ae8a6ff3114b0aaf9a41a6cf3560"
 
 [[projects]]
   digest = "1:e7071ed636b5422cc51c0e3a6cebc229d6c9fffc528814b519a980641422d619"
@@ -195,7 +195,7 @@
   revision = "9d24e82272b4f38b78bc8cff74fa936d31ccd8ef"
 
 [[projects]]
-  digest = "1:34c10243da5972105edd1b4b883e2bd918fbb3f73fbe14d6af6929e547173494"
+  digest = "1:372cd8eba449f9b6db06677d0e73fa193ec5b19aaee148f355503ab6127045ca"
   name = "google.golang.org/appengine"
   packages = [
     "internal",
@@ -207,8 +207,8 @@
     "urlfetch",
   ]
   pruneopts = "NUT"
-  revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
-  version = "v1.4.0"
+  revision = "54a98f90d1c46b7731eb8fb305d2a321c30ef610"
+  version = "v1.5.0"
 
 [[projects]]
   branch = "master"
@@ -216,10 +216,10 @@
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
   pruneopts = "NUT"
-  revision = "5fe7a883aa19554f42890211544aa549836af7b7"
+  revision = "d831d65fe17df2e52bcc4316d4a9f7a418701f43"
 
 [[projects]]
-  digest = "1:f2df7088cd31687fdce0f2eee853682416bf1e70baa487094913e3881f1f12f8"
+  digest = "1:f9fe1989f8278a0976fadf27490720c7708c056a11ab7a7ad3d282ff26f28e9a"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -255,8 +255,8 @@
     "tap",
   ]
   pruneopts = "NUT"
-  revision = "2fdaae294f38ed9a121193c51ec99fecd3b13eb7"
-  version = "v1.19.0"
+  revision = "3507fb8e1a5ad030303c106fef3a47c9fdad16ad"
+  version = "v1.19.1"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
@@ -316,11 +316,11 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "aed3e58a5946ed43ef2008af9bc6d0d48e0682ea"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:162eaae819b24cdec8e0df30e0d0df55de5b36a10a36ecfd50bd348bf92ae144"
+  digest = "1:2b389c49a178bda25b3f1fe0b5f0b74ef4abb6e4e45150f4f66fcd793657cc62"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -364,8 +364,8 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "52b84f9b724722e77633d2fe022d2d8d57bb16a9"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   digest = "1:e4535a8a1585d783d8041b59fb6a3d86657a23bc238a741dbeda31df1a5d820c"
@@ -431,8 +431,8 @@
     "util/keyutil",
   ]
   pruneopts = "NUT"
-  revision = "94c2b28f7daad3bd8a35083cc4f8cbe93f027cb3"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   digest = "1:c263611800c3a97991dbcf9d3bc4de390f6224aaa8ca0a7226a9d734f65a416a"
@@ -448,7 +448,7 @@
   name = "k8s.io/kube-openapi"
   packages = ["pkg/util/proto"]
   pruneopts = "NUT"
-  revision = "15615b16d372105f0c69ff47dfe7402926a65aaa"
+  revision = "5e45bb682580c9be5ffa4d27d367f0eeba125c7b"
 
 [[projects]]
   branch = "master"
