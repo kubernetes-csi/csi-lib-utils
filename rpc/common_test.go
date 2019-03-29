@@ -609,3 +609,7 @@ func (c *fakeControllerServer) DeleteSnapshot(context.Context, *csi.DeleteSnapsh
 func (c *fakeControllerServer) ListSnapshots(context.Context, *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	return nil, fmt.Errorf("unimplemented")
 }
+
+func (c *fakeControllerServer) ControllerExpandVolume(context.Context, *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
