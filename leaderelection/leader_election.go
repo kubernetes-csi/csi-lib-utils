@@ -107,29 +107,24 @@ func NewLeaderElectionWithConfigMaps(clientset kubernetes.Interface, lockName st
 	}
 }
 
-func (l *leaderElection) WithIdentity(identity string) *leaderElection {
+func (l *leaderElection) WithIdentity(identity string) {
 	l.identity = identity
-	return l
 }
 
-func (l *leaderElection) WithNamespace(namespace string) *leaderElection {
+func (l *leaderElection) WithNamespace(namespace string) {
 	l.namespace = namespace
-	return l
 }
 
-func (l *leaderElection) WithLeaseDuration(leaseDuration time.Duration) *leaderElection {
+func (l *leaderElection) WithLeaseDuration(leaseDuration time.Duration) {
 	l.leaseDuration = leaseDuration
-	return l
 }
 
-func (l *leaderElection) WithRenewDeadline(renewDeadline time.Duration) *leaderElection {
+func (l *leaderElection) WithRenewDeadline(renewDeadline time.Duration) {
 	l.renewDeadline = renewDeadline
-	return l
 }
 
-func (l *leaderElection) WithRetryPeriod(retryPeriod time.Duration) *leaderElection {
+func (l *leaderElection) WithRetryPeriod(retryPeriod time.Duration) {
 	l.retryPeriod = retryPeriod
-	return l
 }
 
 func (l *leaderElection) Run() error {
