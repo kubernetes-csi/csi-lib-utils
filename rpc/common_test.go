@@ -241,6 +241,9 @@ func TestGetPluginCapabilities(t *testing.T) {
 			defer os.RemoveAll(tmp)
 			identity := &fakeIdentityServer{
 				getPluginCapabilitiesResponse: test.output,
+
+				// Make code compatible with gofmt 1.10.2 (used by pull-sig-storage-csi-lib-utils-stable)
+				// and 1.11.1 (which will be used by new Prow job) via an extra blank line.
 				err: injectedErr,
 			}
 			addr, stopServer := startServer(t, tmp, identity, nil)
@@ -366,6 +369,9 @@ func TestGetControllerCapabilities(t *testing.T) {
 			defer os.RemoveAll(tmp)
 			controller := &fakeControllerServer{
 				controllerGetCapabilitiesResponse: test.output,
+
+				// Make code compatible with gofmt 1.10.2 (used by pull-sig-storage-csi-lib-utils-stable)
+				// and 1.11.1 (which will be used by new Prow job) via an extra blank line.
 				err: injectedErr,
 			}
 			addr, stopServer := startServer(t, tmp, nil, controller)
