@@ -82,6 +82,20 @@
   version = "v1.1.6"
 
 [[projects]]
+  digest = "1:993d07b1f88d30b20e38819f0544566491e920b7c8e07e14aa22bd7e7b770963"
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  packages = [
+    "connection",
+    "protosanitizer",
+    "protosanitizer/test/csi03",
+    "protosanitizer/test/csi10",
+    "protosanitizer/test/csitest",
+  ]
+  pruneopts = "NUT"
+  revision = "b8b7a89535d80e12f2c0f4c53cfb981add8aaca2"
+  version = "v0.6.1"
+
+[[projects]]
   digest = "1:2f42fa12d6911c7b7659738758631bec870b7e9b4c6be5444f963cdcfccc191f"
   name = "github.com/modern-go/concurrent"
   packages = ["."]
@@ -275,9 +289,10 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:a937ed4322409fa22924f02124fd0727c19662f73cf15406646d19bdce972df2"
+  digest = "1:061024a203efbf02654d4aa55d69cd10d1f8985dada4cbafe5d6ce1b6914d22a"
   name = "k8s.io/api"
   packages = [
+    "admissionregistration/v1",
     "admissionregistration/v1beta1",
     "apps/v1",
     "apps/v1beta1",
@@ -297,6 +312,7 @@
     "coordination/v1",
     "coordination/v1beta1",
     "core/v1",
+    "discovery/v1alpha1",
     "events/v1beta1",
     "extensions/v1beta1",
     "networking/v1",
@@ -316,11 +332,11 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
-  version = "kubernetes-1.14.0"
+  revision = "95b840bb6a1f5f0462af804c8589396d294d4914"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:2b389c49a178bda25b3f1fe0b5f0b74ef4abb6e4e45150f4f66fcd793657cc62"
+  digest = "1:eb7795313133e43bf6ef46e1191eae5119d031045eaec18c2e2d3a62af40ac96"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -328,7 +344,6 @@
     "pkg/api/resource",
     "pkg/apis/meta/v1",
     "pkg/apis/meta/v1/unstructured",
-    "pkg/apis/meta/v1beta1",
     "pkg/conversion",
     "pkg/conversion/queryparams",
     "pkg/fields",
@@ -364,16 +379,17 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
-  version = "kubernetes-1.14.0"
+  revision = "27d36303b6556f377b4f34e64705fa9024a12b0c"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:e4535a8a1585d783d8041b59fb6a3d86657a23bc238a741dbeda31df1a5d820c"
+  digest = "1:66ca883a1ee4dc2c97f57334e2031d2187a911cf4eafc1612f34ea7adee79e6d"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "kubernetes",
     "kubernetes/scheme",
+    "kubernetes/typed/admissionregistration/v1",
     "kubernetes/typed/admissionregistration/v1beta1",
     "kubernetes/typed/apps/v1",
     "kubernetes/typed/apps/v1beta1",
@@ -393,6 +409,7 @@
     "kubernetes/typed/coordination/v1",
     "kubernetes/typed/coordination/v1beta1",
     "kubernetes/typed/core/v1",
+    "kubernetes/typed/discovery/v1alpha1",
     "kubernetes/typed/events/v1beta1",
     "kubernetes/typed/extensions/v1beta1",
     "kubernetes/typed/networking/v1",
@@ -431,8 +448,8 @@
     "util/keyutil",
   ]
   pruneopts = "NUT"
-  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
-  version = "kubernetes-1.14.0"
+  revision = "1fbdaa4c8d908275eee958429b1cafc2591a2c5d"
+  version = "kubernetes-1.16.0"
 
 [[projects]]
   digest = "1:c263611800c3a97991dbcf9d3bc4de390f6224aaa8ca0a7226a9d734f65a416a"
@@ -476,6 +493,11 @@
     "github.com/golang/protobuf/protoc-gen-go/descriptor",
     "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/golang/protobuf/ptypes/wrappers",
+    "github.com/kubernetes-csi/csi-lib-utils/connection",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csi03",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csi10",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csitest",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "golang.org/x/net/context",
