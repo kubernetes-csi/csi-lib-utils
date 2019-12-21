@@ -11,8 +11,10 @@ require (
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
-	google.golang.org/grpc v1.19.1
+	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
+	golang.org/x/sys v0.0.0-20191220220014-0732a990476f // indirect
+	google.golang.org/genproto v0.0.0-20191220175831-5c49e3ecc1c1 // indirect
+	google.golang.org/grpc v1.26.0
 	k8s.io/api v0.17.0
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/component-base v0.17.0
