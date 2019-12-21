@@ -35,6 +35,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
+	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,7 +132,7 @@ func TestGetDriverName(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr)
+			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
@@ -251,7 +252,7 @@ func TestGetPluginCapabilities(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr)
+			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
@@ -379,7 +380,7 @@ func TestGetControllerCapabilities(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr)
+			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
@@ -513,7 +514,7 @@ func TestProbeForever(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr)
+			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}

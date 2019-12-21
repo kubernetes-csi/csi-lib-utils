@@ -22,6 +22,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +36,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+
+	"github.com/kubernetes-csi/csi-lib-utils/metrics"
+	"k8s.io/component-base/metrics/testutil"
 )
 
 func tmpDir(t *testing.T) string {
@@ -84,7 +88,7 @@ func TestConnect(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect(addr)
+	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -99,7 +103,7 @@ func TestConnectUnix(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect("unix:///" + addr)
+	conn, err := Connect("unix:///"+addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -139,7 +143,7 @@ func TestWaitForServer(t *testing.T) {
 		startTimeServer = time.Now()
 		_, stopServer = startServer(t, tmp, nil, nil)
 	}()
-	conn, err := Connect(path.Join(tmp, serverSock))
+	conn, err := Connect(path.Join(tmp, serverSock), metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") {
 		endTime := time.Now()
 		assert.NotNil(t, conn, "got a connection")
@@ -158,7 +162,7 @@ func TestTimout(t *testing.T) {
 
 	startTime := time.Now()
 	timeout := 5 * time.Second
-	conn, err := connect(path.Join(tmp, "no-such.sock"), []grpc.DialOption{grpc.WithTimeout(timeout)}, nil)
+	conn, err := connect(path.Join(tmp, "no-such.sock"), metrics.NewCSIMetricsManager("fake.csi.driver.io"), []grpc.DialOption{grpc.WithTimeout(timeout)}, nil)
 	endTime := time.Now()
 	if assert.Error(t, err, "connection should fail") {
 		assert.InEpsilon(t, timeout, endTime.Sub(startTime), 1, "connection timeout")
@@ -177,7 +181,7 @@ func TestReconnect(t *testing.T) {
 	}()
 
 	// Allow reconnection (the default).
-	conn, err := Connect(addr)
+	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		defer conn.Close()
@@ -222,7 +226,7 @@ func TestDisconnect(t *testing.T) {
 	}()
 
 	reconnectCount := 0
-	conn, err := Connect(addr, OnConnectionLoss(func() bool {
+	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func() bool {
 		reconnectCount++
 		// Don't reconnect.
 		return false
@@ -273,7 +277,7 @@ func TestExplicitReconnect(t *testing.T) {
 	}()
 
 	reconnectCount := 0
-	conn, err := Connect(addr, OnConnectionLoss(func() bool {
+	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func() bool {
 		reconnectCount++
 		// Reconnect.
 		return true
@@ -313,4 +317,82 @@ func TestExplicitReconnect(t *testing.T) {
 
 		assert.Equal(t, 1, reconnectCount, "connection loss callback should be called once")
 	}
+}
+
+func TestConnectMetrics(t *testing.T) {
+	tmp := tmpDir(t)
+	defer os.RemoveAll(tmp)
+	addr, stopServer := startServer(t, tmp, nil, nil)
+	defer stopServer()
+
+	cmm := metrics.NewCSIMetricsManager("fake.csi.driver.io")
+	conn, err := Connect(addr, cmm)
+	if assert.NoError(t, err, "connect via absolute path") &&
+		assert.NotNil(t, conn, "got a connection") {
+		defer conn.Close()
+		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
+
+		if err := conn.Invoke(context.Background(), "/csi.v1.Controller/ControllerGetCapabilities", nil, nil); assert.Error(t, err) {
+			errStatus, _ := status.FromError(err)
+			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
+		}
+	}
+
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.1"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.25"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="1"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="2.5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="10"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="15"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 0
+		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		// Ignore mismatches on csi_sidecar_operations_seconds_sum metric because execution time will vary from test to test.
+		err = verifyMetricsError(t, err, "csi_sidecar_operations_seconds_sum")
+		if err != nil {
+			t.Errorf("Expected metrics not found -- %v", err)
+		}
+	}
+}
+
+func verifyMetricsError(t *testing.T, err error, metricToIgnore string) error {
+	errStringArr := strings.Split(err.Error(), "got:")
+
+	if len(errStringArr) != 2 {
+		return err
+	}
+
+	want := errStringArr[0]
+	got := strings.TrimSpace(errStringArr[1])
+
+	if want == "" || got == "" {
+		return err
+	}
+
+	wantArr := strings.Split(err.Error(), "want:")
+	if len(wantArr) != 2 {
+		return err
+	}
+
+	want = strings.TrimSpace(wantArr[1])
+
+	if matchErr := metrics.VerifyMetricsMatch(want, got, metricToIgnore); matchErr != nil {
+		t.Errorf("%v", matchErr)
+		return err
+	}
+
+	return nil
 }
