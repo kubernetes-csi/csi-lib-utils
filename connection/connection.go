@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
 	"k8s.io/klog"
@@ -58,8 +59,8 @@ const terminationLogPath = "/dev/termination-log"
 //
 // For other connections, the default behavior from gRPC is used and
 // loss of connection is not detected reliably.
-func Connect(address string, options ...Option) (*grpc.ClientConn, error) {
-	return connect(address, []grpc.DialOption{}, options)
+func Connect(address string, metricsManager metrics.CSIMetricsManager, options ...Option) (*grpc.ClientConn, error) {
+	return connect(address, metricsManager, []grpc.DialOption{}, options)
 }
 
 // Option is the type of all optional parameters for Connect.
@@ -93,7 +94,10 @@ type options struct {
 }
 
 // connect is the internal implementation of Connect. It has more options to enable testing.
-func connect(address string, dialOptions []grpc.DialOption, connectOptions []Option) (*grpc.ClientConn, error) {
+func connect(
+	address string,
+	metricsManager metrics.CSIMetricsManager,
+	dialOptions []grpc.DialOption, connectOptions []Option) (*grpc.ClientConn, error) {
 	var o options
 	for _, option := range connectOptions {
 		option(&o)
@@ -103,7 +107,10 @@ func connect(address string, dialOptions []grpc.DialOption, connectOptions []Opt
 		grpc.WithInsecure(),                   // Don't use TLS, it's usually local Unix domain socket in a container.
 		grpc.WithBackoffMaxDelay(time.Second), // Retry every second after failure.
 		grpc.WithBlock(),                      // Block until connection succeeds.
-		grpc.WithUnaryInterceptor(LogGRPC),    // Log all messages.
+		grpc.WithChainUnaryInterceptor(
+			LogGRPC, // Log all messages.
+			extendedCSIMetricsManager{metricsManager}.recordMetricsInterceptor, // Record metrics for each gRPC call.
+		),
 	)
 	unixPrefix := "unix://"
 	if strings.HasPrefix(address, "/") {
@@ -177,5 +184,28 @@ func LogGRPC(ctx context.Context, method string, req, reply interface{}, cc *grp
 	err := invoker(ctx, method, req, reply, cc, opts...)
 	klog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
 	klog.V(5).Infof("GRPC error: %v", err)
+	return err
+}
+
+type extendedCSIMetricsManager struct {
+	metrics.CSIMetricsManager
+}
+
+// recordMetricsInterceptor is a gPRC unary interceptor for recording metrics for CSI operations.
+func (cmm extendedCSIMetricsManager) recordMetricsInterceptor(
+	ctx context.Context,
+	method string,
+	req, reply interface{},
+	cc *grpc.ClientConn,
+	invoker grpc.UnaryInvoker,
+	opts ...grpc.CallOption) error {
+	start := time.Now()
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	duration := time.Since(start)
+	cmm.RecordMetrics(
+		method,   /* operationName */
+		err,      /* operationErr */
+		duration, /* operationDuration */
+	)
 	return err
 }
