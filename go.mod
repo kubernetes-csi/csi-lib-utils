@@ -16,7 +16,7 @@ require (
 	google.golang.org/genproto v0.0.0-20200406120821-33397c535dc2 // indirect
 	google.golang.org/grpc v1.28.0
 	k8s.io/api v0.18.0
-	k8s.io/client-go v1.5.1
+	k8s.io/client-go v1.18.0
 	k8s.io/component-base v0.18.0
 	k8s.io/klog v1.0.0
 )
