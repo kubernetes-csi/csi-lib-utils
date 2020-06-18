@@ -60,6 +60,8 @@ type leaderElection struct {
 	renewDeadline time.Duration
 	retryPeriod   time.Duration
 
+	ctx context.Context
+
 	clientset kubernetes.Interface
 }
 
@@ -127,6 +129,11 @@ func (l *leaderElection) WithRetryPeriod(retryPeriod time.Duration) {
 	l.retryPeriod = retryPeriod
 }
 
+// WithContext Add context
+func (l *leaderElection) WithContext(ctx context.Context) {
+	l.ctx = ctx
+}
+
 func (l *leaderElection) Run() error {
 	if l.identity == "" {
 		id, err := defaultLeaderElectionIdentity()
@@ -174,7 +181,10 @@ func (l *leaderElection) Run() error {
 		},
 	}
 
-	leaderelection.RunOrDie(context.TODO(), leaderConfig)
+	if l.ctx == nil {
+		l.ctx = context.TODO()
+	}
+	leaderelection.RunOrDie(l.ctx, leaderConfig)
 	return nil // should never reach here
 }
 
