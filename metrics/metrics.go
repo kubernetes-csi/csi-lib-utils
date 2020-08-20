@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,8 +31,18 @@ import (
 )
 
 const (
+	// SubsystemSidecar is the default subsystem name in a metrics
+	// (= the prefix in the final metrics name). It is to be used
+	// by CSI sidecars. Using the same subsystem in different CSI
+	// drivers makes it possible to reuse dashboards because
+	// the metrics names will be identical. Data from different
+	// drivers can be selected via the "driver_name" tag.
+	SubsystemSidecar = "csi_sidecar"
+	// SubsystemPlugin is what CSI driver's should use as
+	// subsystem name.
+	SubsystemPlugin = "csi_plugin"
+
 	// Common metric strings
-	subsystem             = "csi_sidecar"
 	labelCSIDriverName    = "driver_name"
 	labelCSIOperationName = "method_name"
 	labelGrpcStatusCode   = "grpc_status_code"
@@ -56,10 +67,12 @@ type CSIMetricsManager interface {
 	// operationName - Name of the CSI operation.
 	// operationErr - Error, if any, that resulted from execution of operation.
 	// operationDuration - time it took for the operation to complete
+	// labelValues - for each additional label that was defined in WithLabels(), one value has to be passed (usually none)
 	RecordMetrics(
 		operationName string,
 		operationErr error,
-		operationDuration time.Duration)
+		operationDuration time.Duration,
+		labelValues ...string)
 
 	// SetDriverName is called to update the CSI driver name. This should be done
 	// as soon as possible, otherwise metrics recorded by this manager will be
@@ -73,25 +86,103 @@ type CSIMetricsManager interface {
 	StartMetricsEndpoint(metricsAddress, metricsPath string)
 }
 
-// NewCSIMetricsManager creates and registers metrics for for CSI Sidecars and
-// returns an object that can be used to trigger the metrics.
+// MetricsManagerOption is used to pass optional configuration to a
+// new metrics manager.
+type MetricsManagerOption func(*csiMetricsManager)
+
+// WithSubsystem overrides the default subsystem name.
+func WithSubsystem(subsystem string) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.subsystem = subsystem
+	}
+}
+
+// WithStabilityLevel overrides the default stability level.
+func WithStabilityLevel(stabilityLevel metrics.StabilityLevel) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.stabilityLevel = stabilityLevel
+	}
+}
+
+// WithLabelNames defines labels for each sample that get added to the
+// default labels (driver, method call, and gRPC result). This makes
+// it possible to partition the histograms along additional
+// dimensions.
+func WithLabelNames(labelNames ...string) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.additionalLabelNames = labelNames
+	}
+}
+
+// WithLabels defines some label name and value pairs that are added to all
+// samples. They get recorded sorted by name.
+func WithLabels(labels map[string]string) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		var l []label
+		for name, value := range labels {
+			l = append(l, label{name, value})
+		}
+		sort.Slice(l, func(i, j int) bool {
+			return l[i].name < l[j].name
+		})
+		cmm.additionalLabels = l
+	}
+}
+
+// NewCSIMetricsManagerForSidecar creates and registers metrics for CSI Sidecars and
+// returns an object that can be used to trigger the metrics. It uses "csi_sidecar"
+// as subsystem.
+//
 // driverName - Name of the CSI driver against which this operation was executed.
 //              If unknown, leave empty, and use SetDriverName method to update later.
-func NewCSIMetricsManager(driverName string) CSIMetricsManager {
-	cmm := csiMetricsManager{
-		registry: metrics.NewKubeRegistry(),
-		csiOperationsLatencyMetric: metrics.NewHistogramVec(
-			&metrics.HistogramOpts{
-				Subsystem:      subsystem,
-				Name:           operationsLatencyMetricName,
-				Help:           operationsLatencyHelp,
-				Buckets:        operationsLatencyBuckets,
-				StabilityLevel: metrics.ALPHA,
-			},
-			[]string{labelCSIDriverName, labelCSIOperationName, labelGrpcStatusCode},
-		),
-	}
+func NewCSIMetricsManagerForSidecar(driverName string) CSIMetricsManager {
+	return NewCSIMetricsManagerWithOptions(driverName)
+}
 
+// NewCSIMetricsManager is provided for backwards-compatibility.
+var NewCSIMetricsManager = NewCSIMetricsManagerForSidecar
+
+// NewCSIMetricsManagerForPlugin creates and registers metrics for CSI drivers and
+// returns an object that can be used to trigger the metrics. It uses "csi_plugin"
+// as subsystem.
+//
+// driverName - Name of the CSI driver against which this operation was executed.
+//              If unknown, leave empty, and use SetDriverName method to update later.
+func NewCSIMetricsManagerForPlugin(driverName string) CSIMetricsManager {
+	return NewCSIMetricsManagerWithOptions(driverName,
+		WithSubsystem(SubsystemPlugin),
+	)
+}
+
+// NewCSIMetricsManagerWithOptions is a customizable constructor, to be used only
+// if there are special needs like changing the default subsystems.
+//
+// driverName - Name of the CSI driver against which this operation was executed.
+//              If unknown, leave empty, and use SetDriverName method to update later.
+func NewCSIMetricsManagerWithOptions(driverName string, options ...MetricsManagerOption) CSIMetricsManager {
+	cmm := csiMetricsManager{
+		registry:       metrics.NewKubeRegistry(),
+		subsystem:      SubsystemSidecar,
+		stabilityLevel: metrics.ALPHA,
+	}
+	for _, option := range options {
+		option(&cmm)
+	}
+	labels := []string{labelCSIDriverName, labelCSIOperationName, labelGrpcStatusCode}
+	labels = append(labels, cmm.additionalLabelNames...)
+	for _, label := range cmm.additionalLabels {
+		labels = append(labels, label.name)
+	}
+	cmm.csiOperationsLatencyMetric = metrics.NewHistogramVec(
+		&metrics.HistogramOpts{
+			Subsystem:      cmm.subsystem,
+			Name:           operationsLatencyMetricName,
+			Help:           operationsLatencyHelp,
+			Buckets:        operationsLatencyBuckets,
+			StabilityLevel: cmm.stabilityLevel,
+		},
+		labels,
+	)
 	cmm.SetDriverName(driverName)
 	cmm.registerMetrics()
 	return &cmm
@@ -101,9 +192,16 @@ var _ CSIMetricsManager = &csiMetricsManager{}
 
 type csiMetricsManager struct {
 	registry                   metrics.KubeRegistry
+	subsystem                  string
+	stabilityLevel             metrics.StabilityLevel
 	driverName                 string
-	csiOperationsMetric        *metrics.CounterVec
+	additionalLabelNames       []string
+	additionalLabels           []label
 	csiOperationsLatencyMetric *metrics.HistogramVec
+}
+
+type label struct {
+	name, value string
 }
 
 func (cmm *csiMetricsManager) GetRegistry() metrics.KubeRegistry {
@@ -115,12 +213,18 @@ func (cmm *csiMetricsManager) GetRegistry() metrics.KubeRegistry {
 // operationName - Name of the CSI operation.
 // operationErr - Error, if any, that resulted from execution of operation.
 // operationDuration - time it took for the operation to complete
+// labelValues - for each additional label that was defined in WithLabels(), one value has to be passed (usually none)
 func (cmm *csiMetricsManager) RecordMetrics(
 	operationName string,
 	operationErr error,
-	operationDuration time.Duration) {
-	cmm.csiOperationsLatencyMetric.WithLabelValues(
-		cmm.driverName, operationName, getErrorCode(operationErr)).Observe(operationDuration.Seconds())
+	operationDuration time.Duration,
+	labelValues ...string) {
+	values := []string{cmm.driverName, operationName, getErrorCode(operationErr)}
+	values = append(values, labelValues...)
+	for _, label := range cmm.additionalLabels {
+		values = append(values, label.value)
+	}
+	cmm.csiOperationsLatencyMetric.WithLabelValues(values...).Observe(operationDuration.Seconds())
 }
 
 // SetDriverName is called to update the CSI driver name. This should be done

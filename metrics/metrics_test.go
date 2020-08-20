@@ -25,13 +25,55 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/testutil"
 )
 
 func TestRecordMetrics(t *testing.T) {
+	testcases := map[string]struct {
+		subsystem      string
+		stabilityLevel metrics.StabilityLevel
+	}{
+		"default": {},
+		"sidecar": {subsystem: SubsystemSidecar},
+		"driver":  {subsystem: SubsystemPlugin},
+		"other":   {subsystem: "other"},
+		"stable":  {stabilityLevel: metrics.STABLE},
+		"alpha":   {stabilityLevel: metrics.ALPHA},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			testRecordMetrics(t, tc.subsystem, tc.stabilityLevel)
+		})
+	}
+}
+
+func testRecordMetrics(t *testing.T, subsystem string, stabilityLevel metrics.StabilityLevel) {
 	// Arrange
-	cmm := NewCSIMetricsManager(
-		"fake.csi.driver.io" /* driverName */)
+	var cmm CSIMetricsManager
+	driverName := "fake.csi.driver.io"
+	if stabilityLevel == "" {
+		// Cover the two dedicated calls.
+		switch subsystem {
+		case SubsystemSidecar:
+			cmm = NewCSIMetricsManagerForSidecar(driverName)
+		case SubsystemPlugin:
+			cmm = NewCSIMetricsManagerForPlugin(driverName)
+		}
+	}
+	if cmm == nil {
+		// The flexible construction is the fallback.
+		var options []MetricsManagerOption
+		if subsystem != "" {
+			options = append(options, WithSubsystem(subsystem))
+		}
+		if stabilityLevel != "" {
+			options = append(options, WithStabilityLevel(stabilityLevel))
+		}
+		cmm = NewCSIMetricsManagerWithOptions(driverName, options...)
+	}
+
 	operationDuration, _ := time.ParseDuration("20s")
 
 	// Act
@@ -60,6 +102,12 @@ func TestRecordMetrics(t *testing.T) {
 		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 20
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
 		`
+	if subsystem != "" {
+		expectedMetrics = strings.Replace(expectedMetrics, "csi_sidecar", subsystem, -1)
+	}
+	if stabilityLevel != "" {
+		expectedMetrics = strings.Replace(expectedMetrics, "ALPHA", string(stabilityLevel), -1)
+	}
 
 	if err := testutil.GatherAndCompare(
 		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
@@ -69,7 +117,7 @@ func TestRecordMetrics(t *testing.T) {
 
 func TestRecordMetrics_NoDriverName(t *testing.T) {
 	// Arrange
-	cmm := NewCSIMetricsManager(
+	cmm := NewCSIMetricsManagerForSidecar(
 		"" /* driverName */)
 	operationDuration, _ := time.ParseDuration("20s")
 
@@ -108,7 +156,7 @@ func TestRecordMetrics_NoDriverName(t *testing.T) {
 
 func TestRecordMetrics_Negative(t *testing.T) {
 	// Arrange
-	cmm := NewCSIMetricsManager(
+	cmm := NewCSIMetricsManagerForSidecar(
 		"fake.csi.driver.io" /* driverName */)
 	operationDuration, _ := time.ParseDuration("20s")
 
@@ -146,7 +194,7 @@ func TestRecordMetrics_Negative(t *testing.T) {
 
 func TestStartMetricsEndPoint_Noop(t *testing.T) {
 	// Arrange
-	cmm := NewCSIMetricsManager(
+	cmm := NewCSIMetricsManagerForSidecar(
 		"fake.csi.driver.io" /* driverName */)
 	operationDuration, _ := time.ParseDuration("20s")
 
