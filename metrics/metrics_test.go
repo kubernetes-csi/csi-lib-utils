@@ -115,6 +115,288 @@ func testRecordMetrics(t *testing.T, subsystem string, stabilityLevel metrics.St
 	}
 }
 
+func TestFixedLabels(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabels(map[string]string{"a": "111", "b": "222"}),
+	)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmm.RecordMetrics(
+		"myOperation", /* operationName */
+		nil,           /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVaryingLabels(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+	)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmmv, err := cmm.WithLabelValues(map[string]string{"a": "111"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv, err = cmmv.WithLabelValues(map[string]string{"b": "222"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv.RecordMetrics(
+		"myOperation", /* operationName */
+		nil,           /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTwoVaryingLabels(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+	)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmmv, err := cmm.WithLabelValues(map[string]string{"a": "111"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv2, err := cmmv.WithLabelValues(map[string]string{"b": "222"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv2.RecordMetrics(
+		"myOperation", /* operationName */
+		nil,           /* operationErr */
+		operationDuration /* operationDuration */)
+	cmmv3, err := cmmv.WithLabelValues(map[string]string{"b": "xxx"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv3.RecordMetrics(
+		"myOtherOperation", /* operationName */
+		nil,                /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="222",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="xxx",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOtherOperation"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVaryingLabelsBackfill(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+	)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmmv, err := cmm.WithLabelValues(map[string]string{"a": "111"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv.RecordMetrics(
+		"myOperation", /* operationName */
+		nil,           /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVaryingLabels_NameError(t *testing.T) {
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+	)
+
+	_, err := cmm.WithLabelValues(map[string]string{"c": "111"})
+	if err == nil {
+		t.Fatal("unexpected success")
+	}
+}
+
+func TestVaryingLabels_NumberError(t *testing.T) {
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+	)
+
+	cmmv, err := cmm.WithLabelValues(map[string]string{"a": "111", "b": "222"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, err = cmmv.WithLabelValues(map[string]string{"a": "111"})
+	if err == nil {
+		t.Fatal("unexpected success")
+	}
+}
+
+func TestCombinedLabels(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerWithOptions(
+		"", /* driverName */
+		WithLabelNames("a", "b"),
+		WithLabels(map[string]string{"c": "333", "d": "444"}),
+	)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmmv, err := cmm.WithLabelValues(map[string]string{"a": "111", "b": "222"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmmv.RecordMetrics(
+		"myOperation", /* operationName */
+		nil,           /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
+		# TYPE csi_sidecar_operations_seconds histogram
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.25"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="0.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="1"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="2.5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="5"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="10"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="15"} 0
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 20
+		csi_sidecar_operations_seconds_count{a="111",b="222",c="333",d="444",driver_name="unknown-driver",grpc_status_code="OK",method_name="myOperation"} 1
+	`
+
+	if err := testutil.GatherAndCompare(
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRecordMetrics_NoDriverName(t *testing.T) {
 	// Arrange
 	cmm := NewCSIMetricsManagerForSidecar(

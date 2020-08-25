@@ -67,12 +67,22 @@ type CSIMetricsManager interface {
 	// operationName - Name of the CSI operation.
 	// operationErr - Error, if any, that resulted from execution of operation.
 	// operationDuration - time it took for the operation to complete
-	// labelValues - for each additional label that was defined in WithLabels(), one value has to be passed (usually none)
+	//
+	// If WithLabelNames was used to define additional labels when constructing
+	// the manager, then WithLabelValues should be used to create a wrapper which
+	// holds the corresponding values before calling RecordMetrics of the wrapper.
+	// Labels with missing values are recorded as empty.
 	RecordMetrics(
 		operationName string,
 		operationErr error,
-		operationDuration time.Duration,
-		labelValues ...string)
+		operationDuration time.Duration)
+
+	// WithLabelValues must be used to add the additional label
+	// values defined via WithLabelNames. When calling RecordMetrics
+	// without it or with too few values, the missing values are
+	// recorded as empty. WithLabelValues can be called multiple times
+	// and then accumulates values.
+	WithLabelValues(labels map[string]string) (CSIMetricsManager, error)
 
 	// SetDriverName is called to update the CSI driver name. This should be done
 	// as soon as possible, otherwise metrics recorded by this manager will be
@@ -108,6 +118,9 @@ func WithStabilityLevel(stabilityLevel metrics.StabilityLevel) MetricsManagerOpt
 // default labels (driver, method call, and gRPC result). This makes
 // it possible to partition the histograms along additional
 // dimensions.
+//
+// To record a metrics with additional values, use
+// CSIMetricManager.WithLabelValues().RecordMetrics().
 func WithLabelNames(labelNames ...string) MetricsManagerOption {
 	return func(cmm *csiMetricsManager) {
 		cmm.additionalLabelNames = labelNames
@@ -208,23 +221,89 @@ func (cmm *csiMetricsManager) GetRegistry() metrics.KubeRegistry {
 	return cmm.registry
 }
 
-// RecordMetrics must be called upon CSI Operation completion to record
-// the operation's metric.
-// operationName - Name of the CSI operation.
-// operationErr - Error, if any, that resulted from execution of operation.
-// operationDuration - time it took for the operation to complete
-// labelValues - for each additional label that was defined in WithLabels(), one value has to be passed (usually none)
+// RecordMetrics implements CSIMetricsManager.RecordMetrics.
 func (cmm *csiMetricsManager) RecordMetrics(
+	operationName string,
+	operationErr error,
+	operationDuration time.Duration) {
+	cmm.recordMetricsWithLabels(operationName, operationErr, operationDuration)
+}
+
+// recordMetricsWithLabels is the internal implementation of RecordMetrics.
+func (cmm *csiMetricsManager) recordMetricsWithLabels(
 	operationName string,
 	operationErr error,
 	operationDuration time.Duration,
 	labelValues ...string) {
 	values := []string{cmm.driverName, operationName, getErrorCode(operationErr)}
-	values = append(values, labelValues...)
+	toAdd := len(labelValues)
+	if toAdd > len(cmm.additionalLabelNames) {
+		// To many labels?! Truncate. Shouldn't happen because of
+		// error checking in WithLabelValues.
+		toAdd = len(cmm.additionalLabelNames)
+	}
+	values = append(values, labelValues[0:toAdd]...)
+	for i := toAdd; i < len(cmm.additionalLabelNames); i++ {
+		// Backfill missing values with empty string.
+		values = append(values, "")
+	}
 	for _, label := range cmm.additionalLabels {
 		values = append(values, label.value)
 	}
 	cmm.csiOperationsLatencyMetric.WithLabelValues(values...).Observe(operationDuration.Seconds())
+}
+
+type csiMetricsManagerWithValues struct {
+	*csiMetricsManager
+
+	// additionalValues holds the values passed via WithLabelValues.
+	additionalValues []string
+}
+
+// WithLabelValues in the base metrics manager creates a fresh wrapper with no labels and let's
+// that deal with adding the label values.
+func (cmm *csiMetricsManager) WithLabelValues(labels map[string]string) (CSIMetricsManager, error) {
+	cmmv := &csiMetricsManagerWithValues{csiMetricsManager: cmm}
+	return cmmv.WithLabelValues(labels)
+}
+
+// WithLabelValues in the wrapper creates a wrapper which has all existing labels and
+// adds the new ones, with error checking.
+func (cmmv *csiMetricsManagerWithValues) WithLabelValues(labels map[string]string) (CSIMetricsManager, error) {
+	extended := &csiMetricsManagerWithValues{cmmv.csiMetricsManager, append([]string{}, cmmv.additionalValues...)}
+
+	for name := range labels {
+		if !cmmv.haveAdditionalLabel(name) {
+			return nil, fmt.Errorf("label %q was not defined via WithLabelNames", name)
+		}
+	}
+	// Add in same order as in the label definition.
+	for _, name := range cmmv.additionalLabelNames {
+		if value, ok := labels[name]; ok {
+			if len(cmmv.additionalValues) >= len(extended.additionalLabelNames) {
+				return nil, fmt.Errorf("label %q = %q cannot be added, all labels already have values %v", name, value, cmmv.additionalValues)
+			}
+			extended.additionalValues = append(extended.additionalValues, value)
+		}
+	}
+	return extended, nil
+}
+
+func (cmm *csiMetricsManager) haveAdditionalLabel(name string) bool {
+	for _, n := range cmm.additionalLabelNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+// RecordMetrics passes the stored values as to the implementation.
+func (cmmv *csiMetricsManagerWithValues) RecordMetrics(
+	operationName string,
+	operationErr error,
+	operationDuration time.Duration) {
+	cmmv.recordMetricsWithLabels(operationName, operationErr, operationDuration, cmmv.additionalValues...)
 }
 
 // SetDriverName is called to update the CSI driver name. This should be done
