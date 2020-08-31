@@ -107,7 +107,10 @@ func WithSubsystem(subsystem string) MetricsManagerOption {
 	}
 }
 
-// WithStabilityLevel overrides the default stability level.
+// WithStabilityLevel overrides the default stability level. The recommended
+// usage is to keep metrics at a lower level when csi-lib-utils switches
+// to beta or GA. Overriding the alpha default with beta or GA is risky
+// because the metrics can still change in the library.
 func WithStabilityLevel(stabilityLevel metrics.StabilityLevel) MetricsManagerOption {
 	return func(cmm *csiMetricsManager) {
 		cmm.stabilityLevel = stabilityLevel
