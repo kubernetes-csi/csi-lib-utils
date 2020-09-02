@@ -335,7 +335,7 @@ func TestVaryingLabels_NameError(t *testing.T) {
 	}
 }
 
-func TestVaryingLabels_NumberError(t *testing.T) {
+func TestVaryingLabels_OverwriteError(t *testing.T) {
 	cmm := NewCSIMetricsManagerWithOptions(
 		"", /* driverName */
 		WithLabelNames("a", "b"),

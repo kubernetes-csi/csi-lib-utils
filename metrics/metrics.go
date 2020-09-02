@@ -229,7 +229,7 @@ func (cmm *csiMetricsManager) RecordMetrics(
 	operationName string,
 	operationErr error,
 	operationDuration time.Duration) {
-	cmm.recordMetricsWithLabels(operationName, operationErr, operationDuration)
+	cmm.recordMetricsWithLabels(operationName, operationErr, operationDuration, nil)
 }
 
 // recordMetricsWithLabels is the internal implementation of RecordMetrics.
@@ -237,18 +237,10 @@ func (cmm *csiMetricsManager) recordMetricsWithLabels(
 	operationName string,
 	operationErr error,
 	operationDuration time.Duration,
-	labelValues ...string) {
+	labelValues map[string]string) {
 	values := []string{cmm.driverName, operationName, getErrorCode(operationErr)}
-	toAdd := len(labelValues)
-	if toAdd > len(cmm.additionalLabelNames) {
-		// To many labels?! Truncate. Shouldn't happen because of
-		// error checking in WithLabelValues.
-		toAdd = len(cmm.additionalLabelNames)
-	}
-	values = append(values, labelValues[0:toAdd]...)
-	for i := toAdd; i < len(cmm.additionalLabelNames); i++ {
-		// Backfill missing values with empty string.
-		values = append(values, "")
+	for _, name := range cmm.additionalLabelNames {
+		values = append(values, labelValues[name])
 	}
 	for _, label := range cmm.additionalLabels {
 		values = append(values, label.value)
@@ -260,34 +252,42 @@ type csiMetricsManagerWithValues struct {
 	*csiMetricsManager
 
 	// additionalValues holds the values passed via WithLabelValues.
-	additionalValues []string
+	additionalValues map[string]string
 }
 
 // WithLabelValues in the base metrics manager creates a fresh wrapper with no labels and let's
 // that deal with adding the label values.
 func (cmm *csiMetricsManager) WithLabelValues(labels map[string]string) (CSIMetricsManager, error) {
-	cmmv := &csiMetricsManagerWithValues{csiMetricsManager: cmm}
+	cmmv := &csiMetricsManagerWithValues{
+		csiMetricsManager: cmm,
+		additionalValues:  map[string]string{},
+	}
 	return cmmv.WithLabelValues(labels)
 }
 
 // WithLabelValues in the wrapper creates a wrapper which has all existing labels and
-// adds the new ones, with error checking.
+// adds the new ones, with error checking. Can be called multiple times. Each call then
+// can add some new value(s). It is an error to overwrite an already set value.
+// If RecordMetrics is called before setting all additional values, the missing ones will
+// be empty.
 func (cmmv *csiMetricsManagerWithValues) WithLabelValues(labels map[string]string) (CSIMetricsManager, error) {
-	extended := &csiMetricsManagerWithValues{cmmv.csiMetricsManager, append([]string{}, cmmv.additionalValues...)}
-
-	for name := range labels {
-		if !cmmv.haveAdditionalLabel(name) {
+	extended := &csiMetricsManagerWithValues{
+		csiMetricsManager: cmmv.csiMetricsManager,
+		additionalValues:  map[string]string{},
+	}
+	// We need to copy the old values to avoid modifying the map in cmmv.
+	for name, value := range cmmv.additionalValues {
+		extended.additionalValues[name] = value
+	}
+	// Now add all new values.
+	for name, value := range labels {
+		if !extended.haveAdditionalLabel(name) {
 			return nil, fmt.Errorf("label %q was not defined via WithLabelNames", name)
 		}
-	}
-	// Add in same order as in the label definition.
-	for _, name := range cmmv.additionalLabelNames {
-		if value, ok := labels[name]; ok {
-			if len(cmmv.additionalValues) >= len(extended.additionalLabelNames) {
-				return nil, fmt.Errorf("label %q = %q cannot be added, all labels already have values %v", name, value, cmmv.additionalValues)
-			}
-			extended.additionalValues = append(extended.additionalValues, value)
+		if v, ok := extended.additionalValues[name]; ok {
+			return nil, fmt.Errorf("label %q already has value %q", name, v)
 		}
+		extended.additionalValues[name] = value
 	}
 	return extended, nil
 }
@@ -306,7 +306,7 @@ func (cmmv *csiMetricsManagerWithValues) RecordMetrics(
 	operationName string,
 	operationErr error,
 	operationDuration time.Duration) {
-	cmmv.recordMetricsWithLabels(operationName, operationErr, operationDuration, cmmv.additionalValues...)
+	cmmv.recordMetricsWithLabels(operationName, operationErr, operationDuration, cmmv.additionalValues)
 }
 
 // SetDriverName is called to update the CSI driver name. This should be done
