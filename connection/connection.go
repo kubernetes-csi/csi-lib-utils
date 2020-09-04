@@ -140,7 +140,7 @@ func connect(
 			}
 			conn, err := net.DialTimeout("unix", address[len(unixPrefix):], timeout)
 			if err == nil {
-				// Connection restablished.
+				// Connection reestablished.
 				haveConnected = true
 				lostConnection = false
 			}
