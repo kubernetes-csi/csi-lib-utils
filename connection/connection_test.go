@@ -51,14 +51,34 @@ const (
 	serverSock = "server.sock"
 )
 
+type identityServer struct{}
+
+func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "Unimplemented")
+}
+
+func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "Unimplemented")
+}
+
+func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "Unimplemented")
+}
+
 // startServer creates a gRPC server without any registered services.
 // The returned address can be used to connect to it. The cleanup
 // function stops it. It can be called multiple times.
-func startServer(t *testing.T, tmp string, identity csi.IdentityServer, controller csi.ControllerServer) (string, func()) {
+func startServer(t *testing.T, tmp string, identity csi.IdentityServer, controller csi.ControllerServer, cmm metrics.CSIMetricsManager) (string, func()) {
 	addr := path.Join(tmp, serverSock)
 	listener, err := net.Listen("unix", addr)
 	require.NoError(t, err, "listening on %s", addr)
-	server := grpc.NewServer()
+	var opts []grpc.ServerOption
+	if cmm != nil {
+		opts = append(opts,
+			grpc.UnaryInterceptor(ExtendedCSIMetricsManager{cmm}.RecordMetricsServerInterceptor),
+		)
+	}
+	server := grpc.NewServer(opts...)
 	if identity != nil {
 		csi.RegisterIdentityServer(server, identity)
 	}
@@ -85,7 +105,7 @@ func startServer(t *testing.T, tmp string, identity csi.IdentityServer, controll
 func TestConnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
 	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
@@ -100,7 +120,7 @@ func TestConnect(t *testing.T) {
 func TestConnectUnix(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
 	conn, err := Connect("unix:///"+addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
@@ -141,7 +161,7 @@ func TestWaitForServer(t *testing.T) {
 		t.Logf("sleeping %s before starting server", delay)
 		time.Sleep(delay)
 		startTimeServer = time.Now()
-		_, stopServer = startServer(t, tmp, nil, nil)
+		_, stopServer = startServer(t, tmp, nil, nil, nil)
 	}()
 	conn, err := Connect(path.Join(tmp, serverSock), metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") {
@@ -175,7 +195,7 @@ func TestTimout(t *testing.T) {
 func TestReconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -202,7 +222,7 @@ func TestReconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp, nil, nil)
+		_, stopServer = startServer(t, tmp, nil, nil, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -220,7 +240,7 @@ func TestReconnect(t *testing.T) {
 func TestDisconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -251,7 +271,7 @@ func TestDisconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp, nil, nil)
+		_, stopServer = startServer(t, tmp, nil, nil, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -271,7 +291,7 @@ func TestDisconnect(t *testing.T) {
 func TestExplicitReconnect(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer func() {
 		stopServer()
 	}()
@@ -302,7 +322,7 @@ func TestExplicitReconnect(t *testing.T) {
 		}
 
 		// No reconnection either when the server comes back.
-		_, stopServer = startServer(t, tmp, nil, nil)
+		_, stopServer = startServer(t, tmp, nil, nil, nil)
 		// We need to give gRPC some time. It does not attempt to reconnect
 		// immediately. If we send the method call too soon, the test passes
 		// even though a later method call will go through again.
@@ -322,7 +342,10 @@ func TestExplicitReconnect(t *testing.T) {
 func TestConnectMetrics(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
-	addr, stopServer := startServer(t, tmp, nil, nil)
+	cmmServer := metrics.NewCSIMetricsManagerForPlugin("fake.csi.driver.io")
+	// We have to have a real implementation of the gRPC call, otherwise the metrics
+	// interceptor is not called. The CSI identity service is used because it's simple.
+	addr, stopServer := startServer(t, tmp, &identityServer{}, nil, cmmServer)
 	defer stopServer()
 
 	cmm := metrics.NewCSIMetricsManager("fake.csi.driver.io")
@@ -332,7 +355,8 @@ func TestConnectMetrics(t *testing.T) {
 		defer conn.Close()
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 
-		if err := conn.Invoke(context.Background(), "/csi.v1.Controller/ControllerGetCapabilities", nil, nil); assert.Error(t, err) {
+		identityClient := csi.NewIdentityClient(conn)
+		if _, err := identityClient.GetPluginInfo(context.Background(), &csi.GetPluginInfoRequest{}); assert.Error(t, err) {
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
 		}
@@ -340,22 +364,22 @@ func TestConnectMetrics(t *testing.T) {
 
 	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
 		# TYPE csi_sidecar_operations_seconds histogram
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.1"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.25"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="0.5"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="1"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="2.5"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="5"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="10"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="15"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="25"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="50"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="120"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="300"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="600"} 1
-		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="+Inf"} 1
-		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 0
-		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="0.1"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="0.25"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="0.5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="1"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="2.5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="5"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="10"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="15"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="25"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="50"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="120"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="300"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="600"} 1
+		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo",le="+Inf"} 1
+		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo"} 0
+		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="Unimplemented",method_name="/csi.v1.Identity/GetPluginInfo"} 1
 	`
 
 	if err := testutil.GatherAndCompare(
@@ -363,7 +387,17 @@ func TestConnectMetrics(t *testing.T) {
 		// Ignore mismatches on csi_sidecar_operations_seconds_sum metric because execution time will vary from test to test.
 		err = verifyMetricsError(t, err, "csi_sidecar_operations_seconds_sum")
 		if err != nil {
-			t.Errorf("Expected metrics not found -- %v", err)
+			t.Errorf("Expected client metrics not found -- %v", err)
+		}
+	}
+
+	expectedMetrics = strings.Replace(expectedMetrics, "csi_sidecar", metrics.SubsystemPlugin, -1)
+	if err := testutil.GatherAndCompare(
+		cmmServer.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		// Ignore mismatches on csi_sidecar_operations_seconds_sum metric because execution time will vary from test to test.
+		err = verifyMetricsError(t, err, metrics.SubsystemPlugin+"_operations_seconds_sum")
+		if err != nil {
+			t.Errorf("Expected server metrics not found -- %v", err)
 		}
 	}
 }
