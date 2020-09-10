@@ -4,14 +4,12 @@ go 1.12
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
-	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.4.2
-	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381
 	google.golang.org/grpc v1.29.0
 	k8s.io/api v0.19.0
-	k8s.io/client-go v1.19.0
+	k8s.io/client-go v0.19.0
 	k8s.io/component-base v0.19.0
 	k8s.io/klog v1.0.0
 )
