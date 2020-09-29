@@ -29,6 +29,11 @@ import (
 	"k8s.io/component-base/metrics/testutil"
 )
 
+const (
+	SidecarOperationMetric = "csi_sidecar_operations_seconds"
+	ProcessStartTimeMetric = "process_start_time_seconds"
+)
+
 func TestRecordMetrics(t *testing.T) {
 	testcases := map[string]struct {
 		subsystem      string
@@ -102,15 +107,17 @@ func testRecordMetrics(t *testing.T, subsystem string, stabilityLevel metrics.St
 		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 20
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
 		`
+	metricName := SidecarOperationMetric
 	if subsystem != "" {
 		expectedMetrics = strings.Replace(expectedMetrics, "csi_sidecar", subsystem, -1)
+		metricName = strings.Replace(metricName, "csi_sidecar", subsystem, -1)
 	}
 	if stabilityLevel != "" {
 		expectedMetrics = strings.Replace(expectedMetrics, "ALPHA", string(stabilityLevel), -1)
 	}
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), metricName); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -151,7 +158,7 @@ func TestFixedLabels(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -200,7 +207,7 @@ func TestVaryingLabels(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -273,7 +280,7 @@ func TestTwoVaryingLabels(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -318,7 +325,7 @@ func TestVaryingLabelsBackfill(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -392,7 +399,7 @@ func TestCombinedLabels(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -431,7 +438,7 @@ func TestRecordMetrics_NoDriverName(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -469,7 +476,7 @@ func TestRecordMetrics_Negative(t *testing.T) {
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="InvalidArgument",method_name="myOperation"} 1
 		`
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -505,6 +512,7 @@ func TestStartMetricsEndPoint_Noop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse metrics response.  Response was: %+v Error: %v", resp, err)
 	}
+	actualMetrics := string(contentBytes)
 
 	expectedMetrics := `# HELP csi_sidecar_operations_seconds [ALPHA] Container Storage Interface operation duration with gRPC error code status total
 		# TYPE csi_sidecar_operations_seconds histogram
@@ -524,10 +532,37 @@ func TestStartMetricsEndPoint_Noop(t *testing.T) {
 		csi_sidecar_operations_seconds_bucket{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities",le="+Inf"} 1
 		csi_sidecar_operations_seconds_sum{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 20
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
-`
+	`
 
-	actualMetrics := string(contentBytes)
-	if err := VerifyMetricsMatch(expectedMetrics, actualMetrics, ""); err != nil {
+	if err := VerifyMetricsMatch(expectedMetrics, actualMetrics, ProcessStartTimeMetric); err != nil {
 		t.Fatalf("Metrics returned by end point do not match expectation: %v", err)
 	}
+}
+
+func TestProcessStartTimeMetricExist(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManagerForSidecar(
+		"fake.csi.driver.io" /* driverName */)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmm.RecordMetrics(
+		"/csi.v1.Controller/ControllerGetCapabilities", /* operationName */
+		nil, /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	metricsFamilies, err := cmm.GetRegistry().Gather()
+	if err != nil {
+		t.Fatalf("Error fetching metrics: %v", err)
+	}
+
+	// check process_start_time_seconds exist
+	for _, metricsFamily := range metricsFamilies {
+		if metricsFamily.GetName() == ProcessStartTimeMetric {
+			return
+		}
+	}
+
+	t.Fatalf("Metrics does not contain %v. Scraped content: %v", ProcessStartTimeMetric, metricsFamilies)
 }
