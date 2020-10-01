@@ -1,3 +1,28 @@
+# Release notes for v0.8.1
+
+# Changelog since v0.8.0
+
+## Changes by Kind
+
+### Feature
+
+- Add `process_start_time_seconds` into the csi metric lib. ([#54](https://github.com/kubernetes-csi/csi-lib-utils/pull/54), [@Jiawei0227](https://github.com/Jiawei0227))
+
+### Bug or Regression
+
+- Fix k8s.io/client-go version in go.mod ([#53](https://github.com/kubernetes-csi/csi-lib-utils/pull/53), [@avorima](https://github.com/avorima))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.8.0
 
 # Changelog since v0.7.0
