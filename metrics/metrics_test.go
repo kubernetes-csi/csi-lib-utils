@@ -28,6 +28,11 @@ import (
 	"k8s.io/component-base/metrics/testutil"
 )
 
+const (
+	SidecarOperationMetric = "csi_sidecar_operations_seconds"
+	ProcessStartTimeMetric = "process_start_time_seconds"
+)
+
 func TestRecordMetrics(t *testing.T) {
 	// Arrange
 	cmm := NewCSIMetricsManager(
@@ -62,7 +67,7 @@ func TestRecordMetrics(t *testing.T) {
 		`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -101,7 +106,7 @@ func TestRecordMetrics_NoDriverName(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -139,7 +144,7 @@ func TestRecordMetrics_Negative(t *testing.T) {
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="InvalidArgument",method_name="myOperation"} 1
 		`
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), SidecarOperationMetric); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -197,7 +202,35 @@ func TestStartMetricsEndPoint_Noop(t *testing.T) {
 `
 
 	actualMetrics := string(contentBytes)
-	if err := VerifyMetricsMatch(expectedMetrics, actualMetrics, ""); err != nil {
+	if err := VerifyMetricsMatch(expectedMetrics, actualMetrics, ProcessStartTimeMetric); err != nil {
 		t.Fatalf("Metrics returned by end point do not match expectation: %v", err)
 	}
+}
+
+func TestProcessStartTimeMetricExist(t *testing.T) {
+	// Arrange
+	cmm := NewCSIMetricsManager(
+		"fake.csi.driver.io" /* driverName */)
+	operationDuration, _ := time.ParseDuration("20s")
+
+	// Act
+	cmm.RecordMetrics(
+		"/csi.v1.Controller/ControllerGetCapabilities", /* operationName */
+		nil, /* operationErr */
+		operationDuration /* operationDuration */)
+
+	// Assert
+	metricsFamilies, err := cmm.GetRegistry().Gather()
+	if err != nil {
+		t.Fatalf("Error fetching metrics: %v", err)
+	}
+
+	// check process_start_time_seconds exist
+	for _, metricsFamily := range metricsFamilies {
+		if metricsFamily.GetName() == ProcessStartTimeMetric {
+			return
+		}
+	}
+
+	t.Fatalf("Metrics does not contain %v. Scraped content: %v", ProcessStartTimeMetric, metricsFamilies)
 }

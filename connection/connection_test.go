@@ -359,7 +359,7 @@ func TestConnectMetrics(t *testing.T) {
 	`
 
 	if err := testutil.GatherAndCompare(
-		cmm.GetRegistry(), strings.NewReader(expectedMetrics)); err != nil {
+		cmm.GetRegistry(), strings.NewReader(expectedMetrics), "csi_sidecar_operations_seconds"); err != nil {
 		// Ignore mismatches on csi_sidecar_operations_seconds_sum metric because execution time will vary from test to test.
 		err = verifyMetricsError(t, err, "csi_sidecar_operations_seconds_sum")
 		if err != nil {
