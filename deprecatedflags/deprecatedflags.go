@@ -21,7 +21,7 @@ package deprecatedflags
 import (
 	"flag"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // Add defines a deprecated option which used to take some kind of
