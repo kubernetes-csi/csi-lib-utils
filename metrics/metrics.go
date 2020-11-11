@@ -207,6 +207,11 @@ func NewCSIMetricsManagerWithOptions(driverName string, options ...MetricsManage
 		// https://github.com/open-telemetry/opentelemetry-collector/issues/969
 		// Add process_start_time_seconds into the metric to let the start time be parsed correctly
 		metrics.RegisterProcessStartTime(cmm.registry.Register)
+		// TODO: This is a bug in component-base library. We need to remove this after upgrade component-base dependency
+		// BugFix: https://github.com/kubernetes/kubernetes/pull/96435
+		// The first call to RegisterProcessStartTime can only create the metric, so we need a second call to actually
+		// register the metric.
+		metrics.RegisterProcessStartTime(cmm.registry.Register)
 	}
 
 	labels := []string{labelCSIDriverName, labelCSIOperationName, labelGrpcStatusCode}
