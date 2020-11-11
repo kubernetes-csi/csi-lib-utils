@@ -145,6 +145,22 @@ func WithLabels(labels map[string]string) MetricsManagerOption {
 	}
 }
 
+// WithProcessStartTime controlls whether process_start_time_seconds is registered
+// in the registry of the metrics manager. It's enabled by default out of convenience
+// (no need to do anything special in most sidecars) but should be disabled in more
+// complex scenarios (more than one metrics manager per process, metric already
+// provided elsewhere like via the Prometheus Golang collector).
+//
+// In particular, registering this metric via metric manager and thus the Kubernetes
+// component base conflicts with the Prometheus Golang collector (gathered metric family
+// process_start_time_seconds has help "[ALPHA] Start time of the process since unix epoch in seconds."
+// but should have "Start time of the process since unix epoch in seconds."
+func WithProcessStartTime(registerProcessStartTime bool) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.registerProcessStartTime = registerProcessStartTime
+	}
+}
+
 // NewCSIMetricsManagerForSidecar creates and registers metrics for CSI Sidecars and
 // returns an object that can be used to trigger the metrics. It uses "csi_sidecar"
 // as subsystem.
@@ -177,18 +193,22 @@ func NewCSIMetricsManagerForPlugin(driverName string) CSIMetricsManager {
 //              If unknown, leave empty, and use SetDriverName method to update later.
 func NewCSIMetricsManagerWithOptions(driverName string, options ...MetricsManagerOption) CSIMetricsManager {
 	cmm := csiMetricsManager{
-		registry:       metrics.NewKubeRegistry(),
-		subsystem:      SubsystemSidecar,
-		stabilityLevel: metrics.ALPHA,
+		registry:                 metrics.NewKubeRegistry(),
+		subsystem:                SubsystemSidecar,
+		stabilityLevel:           metrics.ALPHA,
+		registerProcessStartTime: true,
 	}
-
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/969
-	// Add process_start_time_seconds into the metric to let the start time be parsed correctly
-	metrics.RegisterProcessStartTime(cmm.registry.Register)
 
 	for _, option := range options {
 		option(&cmm)
 	}
+
+	if cmm.registerProcessStartTime {
+		// https://github.com/open-telemetry/opentelemetry-collector/issues/969
+		// Add process_start_time_seconds into the metric to let the start time be parsed correctly
+		metrics.RegisterProcessStartTime(cmm.registry.Register)
+	}
+
 	labels := []string{labelCSIDriverName, labelCSIOperationName, labelGrpcStatusCode}
 	labels = append(labels, cmm.additionalLabelNames...)
 	for _, label := range cmm.additionalLabels {
@@ -219,6 +239,7 @@ type csiMetricsManager struct {
 	additionalLabelNames       []string
 	additionalLabels           []label
 	csiOperationsLatencyMetric *metrics.HistogramVec
+	registerProcessStartTime   bool
 }
 
 type label struct {
