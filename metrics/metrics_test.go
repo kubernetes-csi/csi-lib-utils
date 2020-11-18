@@ -19,6 +19,7 @@ package metrics
 import (
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -481,29 +482,26 @@ func TestRecordMetrics_Negative(t *testing.T) {
 	}
 }
 
-func TestStartMetricsEndPoint_Noop(t *testing.T) {
+func TestRegisterToServer_Noop(t *testing.T) {
 	// Arrange
 	cmm := NewCSIMetricsManagerForSidecar(
 		"fake.csi.driver.io" /* driverName */)
 	operationDuration, _ := time.ParseDuration("20s")
+	mux := http.NewServeMux()
 
 	// Act
-	cmm.StartMetricsEndpoint(":8080", "/metrics")
+	cmm.RegisterToServer(mux, "/metrics")
 	cmm.RecordMetrics(
 		"/csi.v1.Controller/ControllerGetCapabilities", /* operationName */
 		nil, /* operationErr */
 		operationDuration /* operationDuration */)
 
 	// Assert
-	request, err := http.NewRequest("GET", "http://localhost:8080/metrics", strings.NewReader(""))
-	if err != nil {
-		t.Fatalf("Creating request for metrics endpoint failed: %v", err)
-	}
-	client := &http.Client{}
-	resp, err := client.Do(request)
-	if err != nil {
-		t.Fatalf("Failed to GET metrics. Error: %v", err)
-	}
+	request := httptest.NewRequest("GET", "/metrics", strings.NewReader(""))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, request)
+	resp := rec.Result()
+
 	if resp.StatusCode != 200 {
 		t.Fatalf("/metrics response status not 200. Response was: %+v", resp)
 	}

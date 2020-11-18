@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/component-base/metrics"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -90,10 +89,15 @@ type CSIMetricsManager interface {
 	// driverName - Name of the CSI driver against which this operation was executed.
 	SetDriverName(driverName string)
 
-	// StartMetricsEndpoint starts the metrics endpoint at the specified address/path
-	// for this metrics manager.
-	// If the metricsAddress is an empty string, this will be a no op.
-	StartMetricsEndpoint(metricsAddress, metricsPath string)
+	// RegisterToServer registers an HTTP handler for this metrics manager to the
+	// given server at the specified address/path.
+	RegisterToServer(s Server, metricsPath string)
+}
+
+// Server represents any type that could serve HTTP requests for the metrics
+// endpoint.
+type Server interface {
+	Handle(pattern string, handler http.Handler)
 }
 
 // MetricsManagerOption is used to pass optional configuration to a
@@ -351,27 +355,13 @@ func (cmm *csiMetricsManager) SetDriverName(driverName string) {
 	}
 }
 
-// StartMetricsEndpoint starts the metrics endpoint at the specified address/path
-// for this metrics manager  on a new go routine.
-// If the metricsAddress is an empty string, this will be a no op.
-func (cmm *csiMetricsManager) StartMetricsEndpoint(metricsAddress, metricsPath string) {
-	if metricsAddress == "" {
-		klog.Warningf("metrics endpoint will not be started because `metrics-address` was not specified.")
-		return
-	}
-
-	http.Handle(metricsPath, metrics.HandlerFor(
+// RegisterToServer registers an HTTP handler for this metrics manager to the
+// given server at the specified address/path.
+func (cmm *csiMetricsManager) RegisterToServer(s Server, metricsPath string) {
+	s.Handle(metricsPath, metrics.HandlerFor(
 		cmm.GetRegistry(),
 		metrics.HandlerOpts{
 			ErrorHandling: metrics.ContinueOnError}))
-
-	// Spawn a new go routine to listen on specified endpoint
-	go func() {
-		err := http.ListenAndServe(metricsAddress, nil)
-		if err != nil {
-			klog.Fatalf("Failed to start prometheus metrics endpoint on specified address (%q) and path (%q): %s", metricsAddress, metricsPath, err)
-		}
-	}()
 }
 
 // VerifyMetricsMatch is a helper function that verifies that the expected and
