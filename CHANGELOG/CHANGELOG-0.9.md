@@ -1,9 +1,26 @@
 # Release notes for v0.9.0
 
-[Documentation](https://docs.k8s.io/docs/home)
 # Changelog since v0.8.1
 
 ## Changes by Kind
+
+### Urgent Upgrade Notes
+
+- HTTP serving logic for the metrics manager has been refactored.
+  - Sidecars should create an HTTP mux (e.g. `http.ServeMux`) and pass it into `RegisterToServer()`.
+  - Sidecars are responsible for starting a server with this mux. ([#70](https://github.com/kubernetes-csi/csi-lib-utils/pull/70), [@verult](https://github.com/verult))
+
+### Feature
+
+- Added leader election health check.
+    - Sidecars should create an HTTP mux (e.g. `http.ServeMux`) and pass it into `RegisterHealthCheck()`.
+    - Sidecars are responsible for starting a server with this mux.
+    - A liveness probe has to be added to the pod spec for the sidecar container. ([#70](https://github.com/kubernetes-csi/csi-lib-utils/pull/70), [@verult](https://github.com/verult))
+
+### Bug or Regression
+
+- Workaround issue of process_start_time metric not showing up. ([#68](https://github.com/kubernetes-csi/csi-lib-utils/pull/68), [@Jiawei0227](https://github.com/Jiawei0227))
+- Process_start_time should be unique in a process and therefore can now be disabled in the metrics manager registry if not needed or when it conflicts with other collectors ([#67](https://github.com/kubernetes-csi/csi-lib-utils/pull/67), [@pohly](https://github.com/pohly))
 
 ### Other (Cleanup or Flake)
 
