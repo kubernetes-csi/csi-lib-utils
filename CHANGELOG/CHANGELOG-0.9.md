@@ -1,3 +1,24 @@
+# Release notes for v0.9.1
+
+# Changelog since v0.9.0
+
+## Changes by Kind
+
+### Feature
+
+- Add "Migrated" metrics option to CSI MetricsManager, ([#77](https://github.com/kubernetes-csi/csi-lib-utils/pull/77), [@Jiawei0227](https://github.com/Jiawei0227))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.9.0
 
 # Changelog since v0.8.1
