@@ -8,6 +8,10 @@
 
 - Add "Migrated" metrics option to CSI MetricsManager, ([#77](https://github.com/kubernetes-csi/csi-lib-utils/pull/77), [@Jiawei0227](https://github.com/Jiawei0227))
 
+### Other (Cleanup or Flake)
+
+- Default log level of connection message reduced to '5'. ([#74](https://github.com/kubernetes-csi/csi-lib-utils/pull/74), [@steved](https://github.com/steved))
+
 ## Dependencies
 
 ### Added
