@@ -150,7 +150,7 @@ func connect(
 		return nil, errors.New("OnConnectionLoss callback only supported for unix:// addresses")
 	}
 
-	klog.Infof("Connecting to %s", address)
+	klog.V(5).Infof("Connecting to %s", address)
 
 	// Connect in background.
 	var conn *grpc.ClientConn
