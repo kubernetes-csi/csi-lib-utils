@@ -1,6 +1,6 @@
 module github.com/kubernetes-csi/csi-lib-utils
 
-go 1.12
+go 1.16
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
