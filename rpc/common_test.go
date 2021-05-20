@@ -571,6 +571,10 @@ type fakeControllerServer struct {
 	err                               error
 }
 
+func (c *fakeControllerServer) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
 var _ csi.ControllerServer = &fakeControllerServer{}
 
 func (c *fakeControllerServer) CreateVolume(context.Context, *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
