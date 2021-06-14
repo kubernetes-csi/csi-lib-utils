@@ -3,7 +3,7 @@ module github.com/kubernetes-csi/csi-lib-utils
 go 1.16
 
 require (
-	github.com/container-storage-interface/spec v1.4.0
+	github.com/container-storage-interface/spec v1.5.0
 	github.com/golang/protobuf v1.4.3
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20210224082022-3d97a244fca7
