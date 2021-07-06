@@ -43,12 +43,45 @@ const (
 
 	DefaultHealthCheckTimeout = 20 * time.Second
 
+	nameLeaseDuration = "LEASEDURATION"
+	nameRenewDeadline = "RENEWDEADLINE"
+	nameRetryPeriod   = "RETRYPERIOD"
+	nameHealthCheckTimeout = "HEALTHCHECKTIMEOUT"
+
 	// HealthCheckerAddress is the address at which the leader election health
 	// checker reports status.
 	// The caller sidecar should document this address in appropriate flag
 	// descriptions.
 	HealthCheckerAddress = "/healthz/leader-election"
 )
+
+func getTimer(name string) time.Duration {
+
+    envDuration := os.Getenv(name)
+
+    if envDuration != "" {
+        i, err := time.ParseDuration(envDuration)
+        if err == nil {
+            return i
+        }
+    }
+
+    switch name {
+    case nameLeaseDuration:
+        return defaultLeaseDuration
+
+    case nameRenewDeadline:
+        return defaultRenewDeadline
+
+    case nameRetryPeriod:
+        return defaultRetryPeriod
+
+    case nameHealthCheckTimeout:
+        return DefaultHealthCheckTimeout
+    }
+
+    return 0
+}
 
 // leaderElection is a convenience wrapper around client-go's leader election library.
 type leaderElection struct {
@@ -88,9 +121,9 @@ func NewLeaderElectionWithLeases(clientset kubernetes.Interface, lockName string
 		runFunc:       runFunc,
 		lockName:      lockName,
 		resourceLock:  resourcelock.LeasesResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
+		leaseDuration: getTimer(nameLeaseDuration),
+		renewDeadline: getTimer(nameRenewDeadline),
+		retryPeriod:   getTimer(nameRetryPeriod),
 		clientset:     clientset,
 	}
 }
@@ -101,9 +134,9 @@ func NewLeaderElectionWithEndpoints(clientset kubernetes.Interface, lockName str
 		runFunc:       runFunc,
 		lockName:      lockName,
 		resourceLock:  resourcelock.EndpointsResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
+		leaseDuration: getTimer(nameLeaseDuration),
+		renewDeadline: getTimer(nameRenewDeadline),
+		retryPeriod:   getTimer(nameRetryPeriod),
 		clientset:     clientset,
 	}
 }
@@ -114,9 +147,9 @@ func NewLeaderElectionWithConfigMaps(clientset kubernetes.Interface, lockName st
 		runFunc:       runFunc,
 		lockName:      lockName,
 		resourceLock:  resourcelock.ConfigMapsResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
+		leaseDuration: getTimer(nameLeaseDuration),
+		renewDeadline: getTimer(nameRenewDeadline),
+		retryPeriod:   getTimer(nameRetryPeriod),
 		clientset:     clientset,
 	}
 }
