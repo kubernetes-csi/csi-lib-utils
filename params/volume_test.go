@@ -43,13 +43,13 @@ func TestStripPrefixedCSIParams(t *testing.T) {
 		},
 		{
 			name:           "prefix in value",
-			params:         map[string]string{"foo": prefixedFsTypeKey, "bim": "baz"},
-			expectedParams: map[string]string{"foo": prefixedFsTypeKey, "bim": "baz"},
+			params:         map[string]string{"foo": PrefixedFsTypeKey, "bim": "baz"},
+			expectedParams: map[string]string{"foo": PrefixedFsTypeKey, "bim": "baz"},
 		},
 		{
 			name: "all known prefixed",
 			params: map[string]string{
-				prefixedFsTypeKey:                           "csiBar",
+				PrefixedFsTypeKey:                           "csiBar",
 				prefixedProvisionerSecretNameKey:            "csiBar",
 				prefixedProvisionerSecretNamespaceKey:       "csiBar",
 				prefixedControllerPublishSecretNameKey:      "csiBar",
@@ -106,7 +106,7 @@ func TestStripPrefixedCSIParams(t *testing.T) {
 	for _, tc := range testcases {
 		t.Logf("test: %v", tc.name)
 
-		newParams, err := RemovePrefixedParameters(tc.params)
+		newParams, err := RemovePrefixedVolumeParameters(tc.params)
 		if err != nil {
 			if tc.expectErr {
 				continue

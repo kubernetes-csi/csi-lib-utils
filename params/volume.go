@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	defaultSecretParams = SecretParamsMap{
+	DefaultSecretParams = SecretParamsMap{
 		name:               "Default",
 		secretNameKey:      prefixedDefaultSecretNameKey,
 		secretNamespaceKey: prefixedDefaultSecretNamespaceKey,
@@ -96,7 +96,7 @@ func GetVolumeSecretReference(secretParams SecretParamsMap, templateParams map[s
 
 	// if didn't find secrets for specific call, try to check default values
 	if nameTemplate == "" && namespaceTemplate == "" {
-		nameTemplate, namespaceTemplate, err = VerifyAndGetSecretNameAndNamespaceTemplate(defaultSecretParams, templateParams)
+		nameTemplate, namespaceTemplate, err = VerifyAndGetSecretNameAndNamespaceTemplate(DefaultSecretParams, templateParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default name and namespace template from params: %v", err)
 		}
@@ -155,13 +155,13 @@ func GetVolumeSecretReference(secretParams SecretParamsMap, templateParams map[s
 	return ref, nil
 }
 
-func RemovePrefixedParameters(param map[string]string) (map[string]string, error) {
+func RemovePrefixedVolumeParameters(param map[string]string) (map[string]string, error) {
 	newParam := map[string]string{}
 	for k, v := range param {
 		if strings.HasPrefix(k, csiParameterPrefix) {
 			// Check if its well known
 			switch k {
-			case prefixedFsTypeKey:
+			case PrefixedFsTypeKey:
 			case prefixedProvisionerSecretNameKey:
 			case prefixedProvisionerSecretNamespaceKey:
 			case prefixedControllerPublishSecretNameKey:

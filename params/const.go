@@ -23,7 +23,7 @@ const (
 	// fields in subsequent CSI calls or Kubernetes API objects.
 	csiParameterPrefix = "csi.storage.k8s.io/"
 
-	prefixedFsTypeKey = csiParameterPrefix + "fstype"
+	PrefixedFsTypeKey = csiParameterPrefix + "fstype"
 
 	prefixedDefaultSecretNameKey      = csiParameterPrefix + "secret-name"
 	prefixedDefaultSecretNamespaceKey = csiParameterPrefix + "secret-namespace"
