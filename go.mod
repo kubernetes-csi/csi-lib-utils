@@ -6,7 +6,6 @@ go 1.16
 require (
 	github.com/container-storage-interface/spec v1.5.0
 	github.com/golang/protobuf v1.5.2
-	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.1.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	google.golang.org/grpc v1.38.0

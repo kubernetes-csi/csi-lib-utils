@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
@@ -57,7 +56,7 @@ var (
 // - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func GetSnapshotSecretReference(secretParams SecretParamsMap, snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+func GetSnapshotSecretReference(secretParams SecretParamsMap, snapshotClassParams map[string]string, snapContentName string, snapNamespace string, snapName string) (*v1.SecretReference, error) {
 	nameTemplate, namespaceTemplate, err := VerifyAndGetSecretNameAndNamespaceTemplate(secretParams, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
@@ -74,8 +73,8 @@ func GetSnapshotSecretReference(secretParams SecretParamsMap, snapshotClassParam
 	namespaceParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
 	// snapshot may be nil when resolving create/delete snapshot secret names because the
 	// snapshot may or may not exist at delete time
-	if snapshot != nil {
-		namespaceParams["volumesnapshot.namespace"] = snapshot.Namespace
+	if snapNamespace != "" {
+		namespaceParams["volumesnapshot.namespace"] = snapNamespace
 	}
 
 	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
@@ -95,9 +94,11 @@ func GetSnapshotSecretReference(secretParams SecretParamsMap, snapshotClassParam
 	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace.
 	// Note that VolumeSnapshot name and namespace are under the VolumeSnapshot user's control.
 	nameParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
-	if snapshot != nil {
-		nameParams["volumesnapshot.name"] = snapshot.Name
-		nameParams["volumesnapshot.namespace"] = snapshot.Namespace
+	if snapName != "" {
+		nameParams["volumesnapshot.name"] = snapName
+	}
+	if snapNamespace != "" {
+		nameParams["volumesnapshot.namespace"] = snapNamespace
 	}
 	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
 	if err != nil {
