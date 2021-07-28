@@ -36,7 +36,7 @@ endif
 
 PROTOC := ./protoc
 PROTOC_ZIP := protoc-$(PROTOC_VER)-$(PROTOC_OS)-$(PROTOC_ARCH).zip
-PROTOC_URL := https://github.com/google/protobuf/releases/download/v$(PROTOC_VER)/$(PROTOC_ZIP)
+PROTOC_URL := https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOC_VER)/$(PROTOC_ZIP)
 PROTOC_TMP_DIR := .protoc
 PROTOC_TMP_BIN := $(PROTOC_TMP_DIR)/bin/protoc
 
