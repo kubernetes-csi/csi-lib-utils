@@ -70,7 +70,7 @@ func TestToCSIAccessMode(t *testing.T) {
 			expectError:           true,
 		},
 		{
-			name:                          "RWX with SINGLE_NODE_MULTI_WRITER capable driver",
+			name:                          "RWX with MULTI_NODE_MULTI_WRITER capable driver",
 			pvAccessModes:                 []v1.PersistentVolumeAccessMode{v1.ReadWriteMany},
 			expectedCSIAccessMode:         csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
 			supportsSingleNodeMultiWriter: true,
@@ -90,7 +90,7 @@ func TestToCSIAccessMode(t *testing.T) {
 			supportsSingleNodeMultiWriter: true,
 		},
 		{
-			name:                          "ROX with SINGLE_NODE_MULTI_WRITER capable driver",
+			name:                          "ROX with MULTI_NODE_READER_READER capable driver",
 			pvAccessModes:                 []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany},
 			expectedCSIAccessMode:         csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 			supportsSingleNodeMultiWriter: true,
