@@ -10,7 +10,7 @@ require (
 	google.golang.org/grpc v1.47.0
 	k8s.io/api v0.25.0
 	k8s.io/client-go v0.25.0
-	k8s.io/component-base v0.22.0
+	k8s.io/component-base v0.25.0
 	k8s.io/klog/v2 v2.70.1
 )
 
@@ -18,7 +18,7 @@ require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
