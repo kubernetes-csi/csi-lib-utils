@@ -461,12 +461,13 @@ func verifyMetricsError(t *testing.T, err error, metricToIgnore string) error {
 		return err
 	}
 
-	wantArr := strings.Split(err.Error(), "want:")
+	wantArr := strings.Split(err.Error(), "want")
 	if len(wantArr) != 2 {
 		return err
 	}
 
 	want = strings.TrimSpace(wantArr[1])
+	want = strings.ReplaceAll(want, "+++ got:", "")
 
 	if matchErr := metrics.VerifyMetricsMatch(want, got, metricToIgnore); matchErr != nil {
 		t.Errorf("%v", matchErr)
