@@ -179,6 +179,13 @@ func WithProcessStartTime(registerProcessStartTime bool) MetricsManagerOption {
 	}
 }
 
+// WithCustomRegistry allow user to use custom pre-created registry instead of a new created one.
+func WithCustomRegistry(registry metrics.KubeRegistry) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.registry = registry
+	}
+}
+
 // NewCSIMetricsManagerForSidecar creates and registers metrics for CSI Sidecars and
 // returns an object that can be used to trigger the metrics. It uses "csi_sidecar"
 // as subsystem.
