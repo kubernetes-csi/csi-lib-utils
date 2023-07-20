@@ -537,6 +537,65 @@ func TestRegisterToServer_Noop(t *testing.T) {
 	}
 }
 
+func TestRegisterPprofToServer_AllEndpointsAvailable(t *testing.T) {
+	endpoints := []string{
+		"/debug/pprof/",
+		"/debug/pprof/cmdline",
+		"/debug/pprof/profile",
+		"/debug/pprof/symbol",
+		"/debug/pprof/trace",
+	}
+
+	for _, endpoint := range endpoints {
+		t.Run(endpoint, func(t *testing.T) {
+			testRegisterPprofToServer_AllEndpointsAvailable(t, endpoint)
+		})
+	}
+}
+
+func testRegisterPprofToServer_AllEndpointsAvailable(t *testing.T, endpoint string) {
+	// Arrange
+	cmm := NewCSIMetricsManagerForSidecar(
+		"fake.csi.driver.io" /* driverName */)
+	mux := http.NewServeMux()
+
+	// Act
+	cmm.RegisterPprofToServer(mux)
+
+	// Assert
+	request := httptest.NewRequest("GET", endpoint, strings.NewReader(""))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, request)
+	resp := rec.Result()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("%s response status not 200. Response was: %+v", endpoint, resp)
+	}
+
+	contentBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to parse pprof index response.  Response was: %+v Error: %v", resp, err)
+	}
+
+	// Other endpoints return binary data
+	if endpoint == "/debug/pprof/" {
+		actualPprofIndex := string(contentBytes)
+
+		// This is the exepcted index html page if pprof is running
+		expectedPprofIndexSubstr := `<body>
+/debug/pprof/
+<br>
+<p>Set debug=1 as a query parameter to export in legacy text format</p>
+<br>
+Types of profiles available:
+<table>`
+
+		if ok := strings.Contains(actualPprofIndex, expectedPprofIndexSubstr); !ok {
+			t.Fatalf("Pprof index returned by end point do not match expectation. Expected: %s \nGot: %s", expectedPprofIndexSubstr, actualPprofIndex)
+		}
+	}
+}
+
 func TestProcessStartTimeMetricExist(t *testing.T) {
 	// Arrange
 	cmm := NewCSIMetricsManagerForSidecar(
