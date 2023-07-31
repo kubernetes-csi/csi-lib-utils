@@ -27,6 +27,7 @@ import (
 
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 )
@@ -119,10 +120,18 @@ func withMetrics(metricsManager metrics.CSIMetricsManager) Option {
 	}
 }
 
+// WithOtelTracing enables the recording of traces on the gRPC calls with opentelemetry gRPC interceptor.
+func WithOtelTracing() Option {
+	return func(o *options) {
+		o.enableOtelTracing = true
+	}
+}
+
 type options struct {
-	reconnect      func() bool
-	timeout        time.Duration
-	metricsManager metrics.CSIMetricsManager
+	reconnect         func() bool
+	timeout           time.Duration
+	metricsManager    metrics.CSIMetricsManager
+	enableOtelTracing bool
 }
 
 // connect is the internal implementation of Connect. It has more options to enable testing.
@@ -147,6 +156,9 @@ func connect(
 	interceptors := []grpc.UnaryClientInterceptor{LogGRPC}
 	if o.metricsManager != nil {
 		interceptors = append(interceptors, ExtendedCSIMetricsManager{o.metricsManager}.RecordMetricsClientInterceptor)
+	}
+	if o.enableOtelTracing {
+		interceptors = append(interceptors, otelgrpc.UnaryClientInterceptor())
 	}
 	dialOptions = append(dialOptions, grpc.WithChainUnaryInterceptor(interceptors...))
 

@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
@@ -140,6 +141,21 @@ func TestConnectWithoutMetrics(t *testing.T) {
 
 	conn, err := Connect("unix:///"+addr, nil)
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
+		assert.NotNil(t, conn, "got a connection") {
+		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
+		err = conn.Close()
+		assert.NoError(t, err, "closing connection")
+	}
+}
+
+func TestConnectWithOtelTracing(t *testing.T) {
+	tmp := tmpDir(t)
+	defer os.RemoveAll(tmp)
+	addr, stopServer := startServer(t, tmp, nil, nil, nil)
+	defer stopServer()
+
+	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), WithOtelTracing())
+	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 		err = conn.Close()
@@ -490,4 +506,33 @@ func verifyMetricsError(t *testing.T, err error, metricToIgnore string) error {
 	}
 
 	return nil
+}
+
+func TestConnectWithOtelGrpcInterceptorTraces(t *testing.T) {
+	t.Logf("Running regular connection test")
+	tmp := tmpDir(t)
+	defer os.RemoveAll(tmp)
+	// We have to have a real implementation of the gRPC call, otherwise the trace
+	// interceptor is not called. The CSI identity service is used because it's simple.
+	addr, stopServer := startServer(t, tmp, &identityServer{}, nil, nil)
+	defer stopServer()
+
+	conn, err := Connect(addr, nil, WithOtelTracing())
+
+	if assert.NoError(t, err, "connect via absolute path") &&
+		assert.NotNil(t, conn, "got a connection") {
+		defer conn.Close()
+		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
+
+		identityClient := csi.NewIdentityClient(conn)
+		ctx := context.Background()
+		if _, err := identityClient.GetPluginInfo(ctx, &csi.GetPluginInfoRequest{}); assert.Error(t, err) {
+			errStatus, _ := status.FromError(err)
+			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
+		}
+
+		// First traceID is 00000000000000000000000000000000
+		assert.Equal(t, "00000000000000000000000000000000", trace.SpanContextFromContext(ctx).TraceID().String())
+	}
+
 }
