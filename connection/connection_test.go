@@ -138,7 +138,7 @@ func TestConnectWithoutMetrics(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
-	conn, err := ConnectWithoutMetrics("unix:///" + addr)
+	conn, err := Connect("unix:///"+addr, nil)
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -191,13 +191,13 @@ func TestWaitForServer(t *testing.T) {
 	}
 }
 
-func TestTimout(t *testing.T) {
+func TestTimeout(t *testing.T) {
 	tmp := tmpDir(t)
 	defer os.RemoveAll(tmp)
 
 	startTime := time.Now()
 	timeout := 5 * time.Second
-	conn, err := connect(path.Join(tmp, "no-such.sock"), metrics.NewCSIMetricsManager("fake.csi.driver.io"), []grpc.DialOption{grpc.WithTimeout(timeout)}, nil)
+	conn, err := connect(path.Join(tmp, "no-such.sock"), []Option{withTimeout(timeout)})
 	endTime := time.Now()
 	if assert.Error(t, err, "connection should fail") {
 		assert.InEpsilon(t, timeout, endTime.Sub(startTime), 1, "connection timeout")
