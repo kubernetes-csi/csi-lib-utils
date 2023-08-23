@@ -6,11 +6,11 @@ require (
 	github.com/container-storage-interface/spec v1.8.0
 	github.com/golang/protobuf v1.5.3
 	github.com/stretchr/testify v1.8.2
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 	google.golang.org/grpc v1.54.0
-	k8s.io/api v0.28.0-rc.0
-	k8s.io/client-go v0.28.0-rc.0
-	k8s.io/component-base v0.28.0-rc.0
+	k8s.io/api v0.28.0
+	k8s.io/client-go v0.28.0
+	k8s.io/component-base v0.28.0
 	k8s.io/klog/v2 v2.100.1
 )
 
@@ -54,7 +54,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apimachinery v0.28.0-rc.0 // indirect
+	k8s.io/apimachinery v0.28.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
