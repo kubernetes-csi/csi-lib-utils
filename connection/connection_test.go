@@ -223,7 +223,7 @@ func TestTimeout(t *testing.T) {
 
 	startTime := time.Now()
 	timeout := 5 * time.Second
-	conn, err := connect(path.Join(tmp, "no-such.sock"), []Option{withTimeout(timeout)})
+	conn, err := connect(path.Join(tmp, "no-such.sock"), []Option{WithTimeout(timeout)})
 	endTime := time.Now()
 	if assert.Error(t, err, "connection should fail") {
 		assert.InEpsilon(t, timeout, endTime.Sub(startTime), 1, "connection timeout")
