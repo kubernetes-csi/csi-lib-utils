@@ -79,6 +79,14 @@ func Connect(address string, metricsManager metrics.CSIMetricsManager, options .
 	return connect(address, options)
 }
 
+// ConnectWithoutMetrics behaves exactly like Connect except no metrics are recorded.
+// This function is deprecated, prefer using Connect with `nil` as the metricsManager.
+func ConnectWithoutMetrics(address string, options ...Option) (*grpc.ClientConn, error) {
+	// Prepend default options
+	options = append([]Option{WithTimeout(time.Second * 30)}, options...)
+	return connect(address, options)
+}
+
 // Option is the type of all optional parameters for Connect.
 type Option func(o *options)
 

@@ -139,7 +139,17 @@ func TestConnectWithoutMetrics(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
+	// With Connect
 	conn, err := Connect("unix:///"+addr, nil)
+	if assert.NoError(t, err, "connect with unix:/// prefix") &&
+		assert.NotNil(t, conn, "got a connection") {
+		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
+		err = conn.Close()
+		assert.NoError(t, err, "closing connection")
+	}
+
+	// With ConnectWithoutMetics
+	conn, err = ConnectWithoutMetrics("unix:///" + addr)
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
