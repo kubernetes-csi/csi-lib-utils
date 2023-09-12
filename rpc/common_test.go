@@ -19,7 +19,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -40,7 +39,7 @@ import (
 )
 
 func tmpDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "connect")
+	dir, err := os.MkdirTemp("", "connect")
 	require.NoError(t, err, "creating temp directory")
 	return dir
 }
