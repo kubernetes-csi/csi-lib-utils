@@ -17,7 +17,7 @@ limitations under the License.
 package metrics
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -506,7 +506,7 @@ func TestRegisterToServer_Noop(t *testing.T) {
 		t.Fatalf("/metrics response status not 200. Response was: %+v", resp)
 	}
 
-	contentBytes, err := ioutil.ReadAll(resp.Body)
+	contentBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Failed to parse metrics response.  Response was: %+v Error: %v", resp, err)
 	}
@@ -572,7 +572,7 @@ func testRegisterPprofToServer_AllEndpointsAvailable(t *testing.T, endpoint stri
 		t.Fatalf("%s response status not 200. Response was: %+v", endpoint, resp)
 	}
 
-	contentBytes, err := ioutil.ReadAll(resp.Body)
+	contentBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Failed to parse pprof index response.  Response was: %+v Error: %v", resp, err)
 	}
