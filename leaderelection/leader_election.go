@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -167,6 +167,7 @@ func (l *leaderElection) Run() error {
 		return err
 	}
 
+	logger := klog.FromContext(l.ctx)
 	leaderConfig := leaderelection.LeaderElectionConfig{
 		Lock:          lock,
 		LeaseDuration: l.leaseDuration,
@@ -174,14 +175,16 @@ func (l *leaderElection) Run() error {
 		RetryPeriod:   l.retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				klog.V(2).Info("became leader, starting")
+				logger := klog.FromContext(ctx)
+				logger.V(2).Info("became leader, starting")
 				l.runFunc(ctx)
 			},
 			OnStoppedLeading: func() {
-				klog.Fatal("stopped leading")
+				logger.Error(nil, "Stopped leading")
+				klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 			},
 			OnNewLeader: func(identity string) {
-				klog.V(3).Infof("new leader detected, current leader: %s", identity)
+				logger.V(3).Info("New leader detected", "leader", identity)
 			},
 		},
 		WatchDog: l.healthCheck,
