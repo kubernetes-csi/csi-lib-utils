@@ -671,6 +671,10 @@ func (c *fakeControllerServer) ControllerGetVolume(ctx context.Context, request 
 	return nil, fmt.Errorf("unimplemented")
 }
 
+func (c *fakeControllerServer) ControllerModifyVolume(ctx context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	return nil, fmt.Errorf("unimplemented")
+}
+
 var _ csi.ControllerServer = &fakeControllerServer{}
 
 func (c *fakeControllerServer) CreateVolume(context.Context, *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
