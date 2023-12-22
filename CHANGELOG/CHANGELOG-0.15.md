@@ -1,3 +1,41 @@
+# Release notes for v0.15.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Updated google.golang.org/grpc to v1.59.0. To keep existing behavior, gRPC connection idling is force disabled, i.e. a connection is *not* closed after 30 minutes of inactivity. ([#158](https://github.com/kubernetes-csi/csi-lib-utils/pull/158), [@msau42](https://github.com/msau42))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- cloud.google.com/go/compute: v1.15.1 → v1.23.0
+- github.com/cncf/xds/go: [06c439d → e9ce688](https://github.com/cncf/xds/go/compare/06c439d...e9ce688)
+- github.com/envoyproxy/go-control-plane: [v0.10.3 → v0.11.1](https://github.com/envoyproxy/go-control-plane/compare/v0.10.3...v0.11.1)
+- github.com/envoyproxy/protoc-gen-validate: [v0.9.1 → v1.0.2](https://github.com/envoyproxy/protoc-gen-validate/compare/v0.9.1...v1.0.2)
+- github.com/golang/glog: [v1.0.0 → v1.1.2](https://github.com/golang/glog/compare/v1.0.0...v1.1.2)
+- github.com/google/uuid: [v1.3.0 → v1.3.1](https://github.com/google/uuid/compare/v1.3.0...v1.3.1)
+- golang.org/x/crypto: v0.11.0 → v0.12.0
+- golang.org/x/net: v0.13.0 → v0.14.0
+- golang.org/x/oauth2: v0.8.0 → v0.11.0
+- golang.org/x/sync: v0.2.0 → v0.3.0
+- golang.org/x/sys: v0.10.0 → v0.11.0
+- golang.org/x/term: v0.10.0 → v0.11.0
+- golang.org/x/text: v0.11.0 → v0.12.0
+- google.golang.org/genproto/googleapis/api: dd9d682 → b8732ec
+- google.golang.org/genproto/googleapis/rpc: 28d5490 → b8732ec
+- google.golang.org/genproto: 0005af6 → b8732ec
+- google.golang.org/grpc: v1.54.0 → v1.59.0
+- google.golang.org/protobuf: v1.30.0 → v1.31.0
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.15.0
 
 # Changelog since v0.14.0
