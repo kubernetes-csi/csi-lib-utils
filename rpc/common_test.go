@@ -36,6 +36,9 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/klog/v2/ktesting"
+	_ "k8s.io/klog/v2/ktesting/init"
 )
 
 func tmpDir(t *testing.T) string {
@@ -134,12 +137,13 @@ func TestGetDriverName(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+			_, ctx := ktesting.NewTestContext(t)
+			conn, err := connection.Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
 
-			name, err := GetDriverName(context.Background(), conn)
+			name, err := GetDriverName(ctx, conn)
 			if test.expectError && err == nil {
 				t.Errorf("Expected error, got none")
 			}
@@ -254,12 +258,13 @@ func TestGetPluginCapabilities(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+			_, ctx := ktesting.NewTestContext(t)
+			conn, err := connection.Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
 
-			caps, err := GetPluginCapabilities(context.Background(), conn)
+			caps, err := GetPluginCapabilities(ctx, conn)
 			if test.expectError && err == nil {
 				t.Errorf("Expected error, got none")
 			}
@@ -382,12 +387,13 @@ func TestGetControllerCapabilities(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+			_, ctx := ktesting.NewTestContext(t)
+			conn, err := connection.Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
 
-			caps, err := GetControllerCapabilities(context.Background(), conn)
+			caps, err := GetControllerCapabilities(ctx, conn)
 			if test.expectError && err == nil {
 				t.Errorf("Expected error, got none")
 			}
@@ -476,12 +482,13 @@ func TestGetGroupControllerCapabilities(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+			_, ctx := ktesting.NewTestContext(t)
+			conn, err := connection.Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
 
-			caps, err := GetGroupControllerCapabilities(context.Background(), conn)
+			caps, err := GetGroupControllerCapabilities(ctx, conn)
 			if test.expectError && err == nil {
 				t.Errorf("Expected error, got none")
 			}
@@ -610,12 +617,13 @@ func TestProbeForever(t *testing.T) {
 				stopServer()
 			}()
 
-			conn, err := connection.Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+			_, ctx := ktesting.NewTestContext(t)
+			conn, err := connection.Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 			if err != nil {
 				t.Fatalf("Failed to connect to CSI driver: %s", err)
 			}
 
-			err = ProbeForever(conn, time.Second)
+			err = ProbeForever(ctx, conn, time.Second)
 			if test.expectError && err == nil {
 				t.Errorf("Expected error, got none")
 			}

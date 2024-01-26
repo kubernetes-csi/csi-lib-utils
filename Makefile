@@ -18,3 +18,10 @@ all:
 	go build `go list ./... | grep -v 'vendor'`
 
 include release-tools/build.make
+
+# Check contextual logging.
+.PHONY: logcheck
+test: logcheck
+logcheck:
+	go install sigs.k8s.io/logtools/logcheck@v0.8.1
+	PATH=$$(go env GOPATH)/bin:$$PATH logcheck -check-contextual ./...

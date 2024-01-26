@@ -20,6 +20,7 @@ package deprecatedflags
 
 import (
 	"flag"
+	"fmt"
 
 	"k8s.io/klog/v2"
 )
@@ -29,28 +30,29 @@ import (
 // and instead using the option triggers a deprecation warning. The
 // return code can be safely ignored and is only provided to support
 // replacing functions like flag.Int in a global variable section.
-func Add(name string) bool {
-	flag.Var(deprecated{name: name}, name, "This option is deprecated.")
+func Add(logger klog.Logger, name string) bool {
+	flag.Var(deprecated{name: name, logger: logger}, name, "This option is deprecated.")
 	return true
 }
 
 // AddBool defines a deprecated boolean option. Otherwise it behaves
 // like Add.
-func AddBool(name string) bool {
-	flag.Var(deprecated{name: name, isBool: true}, name, "This option is deprecated.")
+func AddBool(logger klog.Logger, name string) bool {
+	flag.Var(deprecated{name: name, isBool: true, logger: logger}, name, "This option is deprecated.")
 	return true
 }
 
 type deprecated struct {
 	name   string
 	isBool bool
+	logger klog.Logger
 }
 
 var _ flag.Value = deprecated{}
 
 func (d deprecated) String() string { return "" }
 func (d deprecated) Set(value string) error {
-	klog.Warningf("Warning: option %s=%q is deprecated and has no effect", d.name, value)
+	d.logger.Info("Warning: this option is deprecated and has no effect", "option", fmt.Sprintf("%s=%q", d.name, value))
 	return nil
 }
 func (d deprecated) Type() string     { return "" }
