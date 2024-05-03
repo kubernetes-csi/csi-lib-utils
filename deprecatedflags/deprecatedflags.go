@@ -20,8 +20,8 @@ package deprecatedflags
 
 import (
 	"flag"
-
-	"k8s.io/klog/v2"
+	"fmt"
+	"os"
 )
 
 // Add defines a deprecated option which used to take some kind of
@@ -50,7 +50,7 @@ var _ flag.Value = deprecated{}
 
 func (d deprecated) String() string { return "" }
 func (d deprecated) Set(value string) error {
-	klog.Warningf("Warning: option %s=%q is deprecated and has no effect", d.name, value)
+	fmt.Fprintf(os.Stderr, "Warning: option %s=%q is deprecated and has no effect", d.name, value)
 	return nil
 }
 func (d deprecated) Type() string     { return "" }
