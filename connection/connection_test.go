@@ -39,6 +39,8 @@ import (
 
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"k8s.io/component-base/metrics/testutil"
+	"k8s.io/klog/v2/ktesting"
+	_ "k8s.io/klog/v2/ktesting/init"
 )
 
 func tmpDir(t *testing.T) string {
@@ -108,7 +110,8 @@ func TestConnect(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -123,7 +126,8 @@ func TestConnectUnix(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect("unix:///"+addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := Connect(ctx, "unix:///"+addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -137,9 +141,10 @@ func TestConnectWithoutMetrics(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
+	_, ctx := ktesting.NewTestContext(t)
 
 	// With Connect
-	conn, err := Connect("unix:///"+addr, nil)
+	conn, err := Connect(ctx, "unix:///"+addr, nil)
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -148,7 +153,7 @@ func TestConnectWithoutMetrics(t *testing.T) {
 	}
 
 	// With ConnectWithoutMetics
-	conn, err = ConnectWithoutMetrics("unix:///" + addr)
+	conn, err = ConnectWithoutMetrics(ctx, "unix:///"+addr)
 	if assert.NoError(t, err, "connect with unix:/// prefix") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -163,7 +168,8 @@ func TestConnectWithOtelTracing(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, nil, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), WithOtelTracing())
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), WithOtelTracing())
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
@@ -203,7 +209,8 @@ func TestWaitForServer(t *testing.T) {
 		startTimeServer = time.Now()
 		_, stopServer = startServer(t, tmp, nil, nil, nil)
 	}()
-	conn, err := Connect(path.Join(tmp, serverSock), metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := Connect(ctx, path.Join(tmp, serverSock), metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") {
 		endTime := time.Now()
 		assert.NotNil(t, conn, "got a connection")
@@ -222,7 +229,8 @@ func TestTimeout(t *testing.T) {
 
 	startTime := time.Now()
 	timeout := 5 * time.Second
-	conn, err := connect(path.Join(tmp, "no-such.sock"), []Option{WithTimeout(timeout)})
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := connect(ctx, path.Join(tmp, "no-such.sock"), []Option{WithTimeout(timeout)})
 	endTime := time.Now()
 	if assert.Error(t, err, "connection should fail") {
 		assert.InEpsilon(t, timeout, endTime.Sub(startTime), 1, "connection timeout")
@@ -239,22 +247,23 @@ func TestReconnect(t *testing.T) {
 	defer func() {
 		stopServer()
 	}()
+	_, ctx := ktesting.NewTestContext(t)
 
 	// Allow reconnection (the default).
-	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
+	conn, err := Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"))
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
 		defer conn.Close()
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
 		}
 
 		stopServer()
 		startTime := time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unavailable, errStatus.Code(), "connection lost")
@@ -268,7 +277,7 @@ func TestReconnect(t *testing.T) {
 		// even though a later method call will go through again.
 		time.Sleep(5 * time.Second)
 		startTime = time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
@@ -285,8 +294,9 @@ func TestDisconnect(t *testing.T) {
 		stopServer()
 	}()
 
+	_, ctx := ktesting.NewTestContext(t)
 	reconnectCount := 0
-	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func() bool {
+	conn, err := Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func(_ context.Context) bool {
 		reconnectCount++
 		// Don't reconnect.
 		return false
@@ -296,14 +306,14 @@ func TestDisconnect(t *testing.T) {
 		defer conn.Close()
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
 		}
 
 		stopServer()
 		startTime := time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unavailable, errStatus.Code(), "connection lost")
@@ -317,7 +327,7 @@ func TestDisconnect(t *testing.T) {
 		// even though a later method call will go through again.
 		time.Sleep(5 * time.Second)
 		startTime = time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unavailable, errStatus.Code(), "connection still lost")
@@ -336,8 +346,9 @@ func TestExplicitReconnect(t *testing.T) {
 		stopServer()
 	}()
 
+	_, ctx := ktesting.NewTestContext(t)
 	reconnectCount := 0
-	conn, err := Connect(addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func() bool {
+	conn, err := Connect(ctx, addr, metrics.NewCSIMetricsManager("fake.csi.driver.io"), OnConnectionLoss(func(_ context.Context) bool {
 		reconnectCount++
 		// Reconnect.
 		return true
@@ -347,14 +358,14 @@ func TestExplicitReconnect(t *testing.T) {
 		defer conn.Close()
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
 		}
 
 		stopServer()
 		startTime := time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unavailable, errStatus.Code(), "connection lost")
@@ -368,7 +379,7 @@ func TestExplicitReconnect(t *testing.T) {
 		// even though a later method call will go through again.
 		time.Sleep(5 * time.Second)
 		startTime = time.Now()
-		if err := conn.Invoke(context.Background(), "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
+		if err := conn.Invoke(ctx, "/connect.v0.Test/Ping", nil, nil); assert.Error(t, err) {
 			endTime := time.Now()
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "connection still lost")
@@ -451,7 +462,7 @@ func TestConnectMetrics(t *testing.T) {
 		defer stopServer()
 
 		cmm := test.cmm
-		conn, err := Connect(addr, cmm)
+		conn, err := Connect(test.ctx, addr, cmm)
 		if assert.NoError(t, err, "connect via absolute path") &&
 			assert.NotNil(t, conn, "got a connection") {
 			defer conn.Close()
@@ -526,7 +537,8 @@ func TestConnectWithOtelGrpcInterceptorTraces(t *testing.T) {
 	addr, stopServer := startServer(t, tmp, &identityServer{}, nil, nil)
 	defer stopServer()
 
-	conn, err := Connect(addr, nil, WithOtelTracing())
+	_, ctx := ktesting.NewTestContext(t)
+	conn, err := Connect(ctx, addr, nil, WithOtelTracing())
 
 	if assert.NoError(t, err, "connect via absolute path") &&
 		assert.NotNil(t, conn, "got a connection") {
@@ -534,7 +546,6 @@ func TestConnectWithOtelGrpcInterceptorTraces(t *testing.T) {
 		assert.Equal(t, connectivity.Ready, conn.GetState(), "connection ready")
 
 		identityClient := csi.NewIdentityClient(conn)
-		ctx := context.Background()
 		if _, err := identityClient.GetPluginInfo(ctx, &csi.GetPluginInfoRequest{}); assert.Error(t, err) {
 			errStatus, _ := status.FromError(err)
 			assert.Equal(t, codes.Unimplemented, errStatus.Code(), "not implemented")
