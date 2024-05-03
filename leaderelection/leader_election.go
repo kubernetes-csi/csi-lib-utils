@@ -153,9 +153,15 @@ func (l *leaderElection) Run() error {
 		l.namespace = inClusterNamespace()
 	}
 
-	broadcaster := record.NewBroadcaster()
+	ctx := l.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	logger := klog.FromContext(ctx)
+
+	broadcaster := record.NewBroadcaster(record.WithContext(ctx))
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: l.clientset.CoreV1().Events(l.namespace)})
-	eventRecorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("%s/%s", l.lockName, string(l.identity))})
+	eventRecorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("%s/%s", l.lockName, string(l.identity))}).WithLogger(logger)
 
 	rlConfig := resourcelock.ResourceLockConfig{
 		Identity:      sanitizeName(l.identity),
@@ -167,7 +173,6 @@ func (l *leaderElection) Run() error {
 		return err
 	}
 
-	logger := klog.FromContext(l.ctx)
 	leaderConfig := leaderelection.LeaderElectionConfig{
 		Lock:          lock,
 		LeaseDuration: l.leaseDuration,
@@ -190,10 +195,6 @@ func (l *leaderElection) Run() error {
 		WatchDog: l.healthCheck,
 	}
 
-	ctx := l.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	leaderelection.RunOrDie(ctx, leaderConfig)
 	return nil // should never reach here
 }
