@@ -23,4 +23,5 @@ include release-tools/build.make
 .PHONY: logcheck
 test: logcheck
 logcheck:
-	hack/verify-logcheck.sh
+	go version
+	bash -x hack/verify-logcheck.sh
