@@ -31,7 +31,7 @@ CSI_LIB_UTIL_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd -P)
 CSI_LIB_UTIL_TEMP=$(mktemp -d 2>/dev/null || mktemp -d -t csi-lib-utils.XXXXXX)
 trap 'rm -rf "${CSI_LIB_UTIL_TEMP}"' EXIT
 
-echo "Installing logcheck to temp dir: sigs.k8s.io/logtools/logcheck@v${LOGCHECK_VERSION}"
-GOBIN="${CSI_LIB_UTIL_TEMP}" go install "sigs.k8s.io/logtools/logcheck@v${LOGCHECK_VERSION}"
+echo "Installing logcheck to temp dir: github.com/bells17/logtools/logcheck@36ac3c7257976c8646be1da0624cc3220f4e7e5c"
+GOBIN="${CSI_LIB_UTIL_TEMP}" go install "github.com/bells17/logtools/logcheck@36ac3c7257976c8646be1da0624cc3220f4e7e5c"
 echo "Verifing logcheck: ${CSI_LIB_UTIL_TEMP}/logcheck -check-contextual ${CSI_LIB_UTIL_ROOT}/..."
 "${CSI_LIB_UTIL_TEMP}/logcheck" -check-contextual "${CSI_LIB_UTIL_ROOT}/..."
