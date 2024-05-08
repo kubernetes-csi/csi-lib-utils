@@ -33,6 +33,8 @@ trap 'rm -rf "${CSI_LIB_UTIL_TEMP}"' EXIT
 
 echo "Installing logcheck to temp dir: sigs.k8s.io/logtools/logcheck@v${LOGCHECK_VERSION}"
 (
+    go version
+
     # Build outside of the repo.
     cd "${CSI_LIB_UTIL_TEMP}"
     GOBIN="${CSI_LIB_UTIL_TEMP}" go install github.com/pohly/logtools/logcheck@dependency-update-fork
