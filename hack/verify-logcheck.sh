@@ -39,5 +39,6 @@ echo "Installing logcheck to temp dir: sigs.k8s.io/logtools/logcheck@v${LOGCHECK
     cd "${CSI_LIB_UTIL_TEMP}"
     GOBIN="${CSI_LIB_UTIL_TEMP}" go install github.com/pohly/logtools/logcheck@dependency-update-fork
 )
-echo "Verifing logcheck: ${CSI_LIB_UTIL_TEMP}/logcheck -check-contextual ${CSI_LIB_UTIL_ROOT}/..."
-"${CSI_LIB_UTIL_TEMP}/logcheck" -check-contextual -check-with-helpers "${CSI_LIB_UTIL_ROOT}/..."
+echo "Verifing logcheck in ${CSI_LIB_UTIL_ROOT}: ${CSI_LIB_UTIL_TEMP}/logcheck -check-contextual ./..."
+cd "${CSI_LIB_UTIL_ROOT}"
+"${CSI_LIB_UTIL_TEMP}/logcheck" -check-contextual -check-with-helpers ./...
