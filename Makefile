@@ -23,4 +23,5 @@ include release-tools/build.make
 .PHONY: logcheck
 test: logcheck
 logcheck:
+	@ echo; echo "### $@:"
 	hack/verify-logcheck.sh
