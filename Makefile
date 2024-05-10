@@ -19,9 +19,5 @@ all:
 
 include release-tools/build.make
 
-# Check contextual logging.
-.PHONY: logcheck
-test: logcheck
-logcheck:
-	@ echo; echo "### $@:"
-	hack/verify-logcheck.sh
+# Explicitly enable contextual logging check
+test: test-logcheck
