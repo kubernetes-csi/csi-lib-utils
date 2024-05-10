@@ -39,7 +39,7 @@ trap 'rm -rf "${CSI_LIB_UTIL_TEMP}"' EXIT
 
     # Build outside of the repo.
     cd "${CSI_LIB_UTIL_TEMP}"
-    GOBIN="${CSI_LIB_UTIL_TEMP}" go install github.com/pohly/logtools/logcheck@dependency-update-fork
+    GOBIN="${CSI_LIB_UTIL_TEMP}" go install github.com/pohly/logtools/logcheck@dependency-update-fork-1.20
 )
 echo "Verifing logcheck in ${CSI_LIB_UTIL_ROOT}: ${CSI_LIB_UTIL_TEMP}/logcheck -check-contextual ./..."
 cd "${CSI_LIB_UTIL_ROOT}"
