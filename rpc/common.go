@@ -136,6 +136,7 @@ func GetGroupControllerCapabilities(ctx context.Context, conn *grpc.ClientConn) 
 func ProbeForever(ctx context.Context, conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {
 	logger := klog.FromContext(ctx)
 	ticker := time.NewTicker(probeInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
