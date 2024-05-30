@@ -1,3 +1,31 @@
+# Release notes for v0.18.1
+
+# Changelog since v0.18.0
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Restored the previous behavior of `ProbeForever` to do a probe first before sleeping. ([#175](https://github.com/kubernetes-csi/csi-lib-utils/pull/175), [@Fricounet](https://github.com/Fricounet))
+
+### Other (Cleanup or Flake)
+
+- Bump go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc from 0.44.0 -> 0.46.0 ([#174](https://github.com/kubernetes-csi/csi-lib-utils/pull/174), [@black-dragon74](https://github.com/black-dragon74))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc: v0.44.0 → v0.46.0
+- go.opentelemetry.io/otel/metric: v1.19.0 → v1.20.0
+- go.opentelemetry.io/otel/trace: v1.19.0 → v1.20.0
+- go.opentelemetry.io/otel: v1.19.0 → v1.20.0
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.18.0
 
 # Changelog since v0.17.0
