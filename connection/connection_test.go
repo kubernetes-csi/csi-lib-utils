@@ -499,32 +499,14 @@ func TestConnectMetrics(t *testing.T) {
 }
 
 func verifyMetricsError(t *testing.T, err error, metricToIgnore string) error {
-	errStringArr := strings.Split(err.Error(), "got:")
+	errStringLines := strings.Split(err.Error(), "\n")
 
-	if len(errStringArr) != 2 {
-		return err
+	for _, line := range errStringLines {
+		// Return the original error if we find a diff that doesn't include the metricToIgnore.
+		if (strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")) && !strings.Contains(line, metricToIgnore) {
+			return err
+		}
 	}
-
-	want := errStringArr[0]
-	got := strings.TrimSpace(errStringArr[1])
-
-	if want == "" || got == "" {
-		return err
-	}
-
-	wantArr := strings.Split(err.Error(), "want")
-	if len(wantArr) != 2 {
-		return err
-	}
-
-	want = strings.TrimSpace(wantArr[1])
-	want = strings.ReplaceAll(want, "+++ got:", "")
-
-	if matchErr := metrics.VerifyMetricsMatch(want, got, metricToIgnore); matchErr != nil {
-		t.Errorf("%v", matchErr)
-		return err
-	}
-
 	return nil
 }
 
