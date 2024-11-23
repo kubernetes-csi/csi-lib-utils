@@ -34,13 +34,13 @@ func TestStripSecrets(t *testing.T) {
 	createVolume := &csi.CreateVolumeRequest{
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
-				&csi.Topology{
+				{
 					Segments: map[string]string{
 						"foo": "bar",
 						"x":   "y",
 					},
 				},
-				&csi.Topology{
+				{
 					Segments: map[string]string{
 						"a": "b",
 					},
@@ -49,7 +49,7 @@ func TestStripSecrets(t *testing.T) {
 		},
 		Name: "foo",
 		VolumeCapabilities: []*csi.VolumeCapability{
-			&csi.VolumeCapability{
+			{
 				AccessType: &csi.VolumeCapability_Mount{
 					Mount: &csi.VolumeCapability_MountVolume{
 						FsType: "ext4",
@@ -72,8 +72,8 @@ func TestStripSecrets(t *testing.T) {
 			RequiredBytes: 1024,
 		},
 		MaybeSecretMap: map[int64]*csitest.VolumeCapability{
-			1: &csitest.VolumeCapability{ArraySecret: "aaa"},
-			2: &csitest.VolumeCapability{ArraySecret: "bbb"},
+			1: {ArraySecret: "aaa"},
+			2: {ArraySecret: "bbb"},
 		},
 		Name:         "foo",
 		NewSecretInt: 42,
@@ -82,7 +82,7 @@ func TestStripSecrets(t *testing.T) {
 			"secret-xyz": "987",
 		},
 		VolumeCapabilities: []*csitest.VolumeCapability{
-			&csitest.VolumeCapability{
+			{
 				AccessType: &csitest.VolumeCapability_Mount{
 					Mount: &csitest.VolumeCapability_MountVolume{
 						FsType: "ext4",
@@ -90,7 +90,7 @@ func TestStripSecrets(t *testing.T) {
 				},
 				ArraySecret: "knock knock",
 			},
-			&csitest.VolumeCapability{
+			{
 				ArraySecret: "Who's there?",
 			},
 		},
@@ -124,7 +124,7 @@ func TestStripSecrets(t *testing.T) {
 				LimitBytes:    int64(1024),
 			},
 			VolumeCapabilities: []*csi.VolumeCapability{
-				&csi.VolumeCapability{
+				{
 					AccessType: &csi.VolumeCapability_Mount{
 						Mount: &csi.VolumeCapability_MountVolume{
 							FsType:     "ext4",
