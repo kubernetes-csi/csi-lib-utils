@@ -26,6 +26,32 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Test case from https://github.com/kubernetes-csi/csi-lib-utils/pull/1#pullrequestreview-180126394.
+var testReq = csi.CreateVolumeRequest{
+	Name: "test-volume",
+	CapacityRange: &csi.CapacityRange{
+		RequiredBytes: int64(1024),
+		LimitBytes:    int64(1024),
+	},
+	VolumeCapabilities: []*csi.VolumeCapability{
+		{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{
+					FsType:     "ext4",
+					MountFlags: []string{"flag1", "flag2", "flag3"},
+				},
+			},
+			AccessMode: &csi.VolumeCapability_AccessMode{
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+			},
+		},
+	},
+	Secrets:                   map[string]string{"secret1": "secret1", "secret2": "secret2"},
+	Parameters:                map[string]string{"param1": "param1", "param2": "param2"},
+	VolumeContentSource:       &csi.VolumeContentSource{},
+	AccessibilityRequirements: &csi.TopologyRequirement{},
+}
+
 func TestStripSecrets(t *testing.T) {
 	secretName := "secret-abc"
 	secretValue := "123"
@@ -116,31 +142,7 @@ func TestStripSecrets(t *testing.T) {
 		{true, "true"},
 		{false, "false"},
 		{&csi.CreateVolumeRequest{}, `{}`},
-		// Test case from https://github.com/kubernetes-csi/csi-lib-utils/pull/1#pullrequestreview-180126394.
-		{&csi.CreateVolumeRequest{
-			Name: "test-volume",
-			CapacityRange: &csi.CapacityRange{
-				RequiredBytes: int64(1024),
-				LimitBytes:    int64(1024),
-			},
-			VolumeCapabilities: []*csi.VolumeCapability{
-				{
-					AccessType: &csi.VolumeCapability_Mount{
-						Mount: &csi.VolumeCapability_MountVolume{
-							FsType:     "ext4",
-							MountFlags: []string{"flag1", "flag2", "flag3"},
-						},
-					},
-					AccessMode: &csi.VolumeCapability_AccessMode{
-						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
-					},
-				},
-			},
-			Secrets:                   map[string]string{"secret1": "secret1", "secret2": "secret2"},
-			Parameters:                map[string]string{"param1": "param1", "param2": "param2"},
-			VolumeContentSource:       &csi.VolumeContentSource{},
-			AccessibilityRequirements: &csi.TopologyRequirement{},
-		}, `{"accessibility_requirements":{},"capacity_range":{"limit_bytes":1024,"required_bytes":1024},"name":"test-volume","parameters":{"param1":"param1","param2":"param2"},"secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4","mount_flags":["flag1","flag2","flag3"]}},"access_mode":{"mode":5}}],"volume_content_source":{"Type":null}}`},
+		{&testReq, `{"accessibility_requirements":{},"capacity_range":{"limit_bytes":1024,"required_bytes":1024},"name":"test-volume","parameters":{"param1":"param1","param2":"param2"},"secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4","mount_flags":["flag1","flag2","flag3"]}},"access_mode":{"mode":5}}],"volume_content_source":{"Type":null}}`},
 		{createVolume, `{"accessibility_requirements":{"requisite":[{"segments":{"foo":"bar","x":"y"}},{"segments":{"a":"b"}}]},"capacity_range":{"required_bytes":1024},"name":"foo","secrets":"***stripped***","volume_capabilities":[{"AccessType":{"Mount":{"fs_type":"ext4"}}}]}`},
 		{&csitest.CreateVolumeRequest{}, `{}`},
 		{createVolumeFuture,
@@ -178,4 +180,52 @@ func TestStripSecrets(t *testing.T) {
 	dump := fmt.Sprintf("%#v", StripSecrets(createVolume))
 	assert.NotContains(t, dump, secretName)
 	assert.NotContains(t, dump, secretValue)
+}
+
+func BenchmarkStrip(b *testing.B) {
+	msg := StripSecrets(&testReq)
+	for i := 0; i < b.N; i++ {
+		_ = msg.String()
+	}
+}
+
+func BenchmarkStripLarge(b *testing.B) {
+	largeRequest := &csi.CreateVolumeRequest{
+		Name: "foo",
+		Parameters: map[string]string{
+			"param1": "param1",
+			"param2": "param2",
+		},
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{
+						FsType: "ext4",
+					},
+				},
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		AccessibilityRequirements: &csi.TopologyRequirement{},
+	}
+	topologies := make([]*csi.Topology, 10000)
+	for i := range topologies {
+		topologies[i] = &csi.Topology{
+			Segments: map[string]string{
+				"example.com/instance":          fmt.Sprintf("i-%05d", i),
+				"topology.kubernetes.io/zone":   "us-east-1a",
+				"topology.kubernetes.io/region": "us-east-1",
+			},
+		}
+	}
+	largeRequest.AccessibilityRequirements.Requisite = topologies
+	largeRequest.AccessibilityRequirements.Preferred = topologies
+
+	msg := StripSecrets(&largeRequest)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = msg.String()
+	}
 }
