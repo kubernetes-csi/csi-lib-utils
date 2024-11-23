@@ -3,7 +3,7 @@ module github.com/kubernetes-csi/csi-lib-utils
 go 1.22.5
 
 require (
-	github.com/container-storage-interface/spec v1.9.0
+	github.com/container-storage-interface/spec v1.10.0
 	github.com/golang/protobuf v1.5.4
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.0
