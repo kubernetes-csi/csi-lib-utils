@@ -21,12 +21,10 @@ package protosanitizer
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
-	"strings"
 
-	"github.com/golang/protobuf/descriptor"
-	"github.com/golang/protobuf/proto"
-	protobufdescriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // StripSecrets returns a wrapper around the original CSI gRPC message
@@ -42,20 +40,11 @@ import (
 // result to logging functions which may or may not end up serializing
 // the parameter depending on the current log level.
 func StripSecrets(msg interface{}) fmt.Stringer {
-	return &stripSecrets{msg, isCSI1Secret}
-}
-
-// StripSecretsCSI03 is like StripSecrets, except that it works
-// for messages based on CSI 0.3 and older. It does not work
-// for CSI 1.0, use StripSecrets for that.
-func StripSecretsCSI03(msg interface{}) fmt.Stringer {
-	return &stripSecrets{msg, isCSI03Secret}
+	return &stripSecrets{msg}
 }
 
 type stripSecrets struct {
-	msg interface{}
-
-	isSecretField func(field *protobufdescriptor.FieldDescriptorProto) bool
+	msg any
 }
 
 func (s *stripSecrets) String() string {
@@ -66,12 +55,16 @@ func (s *stripSecrets) String() string {
 	if err != nil {
 		return fmt.Sprintf("<<json.Marshal %T: %s>>", s.msg, err)
 	}
+	msg, ok := s.msg.(proto.Message)
+	if !ok {
+		return string(b)
+	}
 	if err := json.Unmarshal(b, &parsed); err != nil {
 		return fmt.Sprintf("<<json.Unmarshal %T: %s>>", s.msg, err)
 	}
 
 	// Now remove secrets from the generic representation of the message.
-	s.strip(parsed, s.msg)
+	s.strip(parsed, msg.ProtoReflect())
 
 	// Re-encoded the stripped representation and return that.
 	b, err = json.Marshal(parsed)
@@ -81,13 +74,7 @@ func (s *stripSecrets) String() string {
 	return string(b)
 }
 
-func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
-	protobufMsg, ok := msg.(descriptor.Message)
-	if !ok {
-		// Not a protobuf message, so we are done.
-		return
-	}
-
+func (s *stripSecrets) strip(parsed interface{}, msg protoreflect.Message) {
 	// The corresponding map in the parsed JSON representation.
 	parsedFields, ok := parsed.(map[string]interface{})
 	if !ok {
@@ -100,77 +87,33 @@ func (s *stripSecrets) strip(parsed interface{}, msg interface{}) {
 	// on each field where the name matches the field name in the protobuf
 	// spec (like volume_capabilities). The field.GetJsonName() method returns
 	// a different name (volumeCapabilities) which we don't use.
-	_, md := descriptor.ForMessage(protobufMsg)
-	fields := md.GetField()
-	if fields != nil {
-		for _, field := range fields {
-			if s.isSecretField(field) {
-				// Overwrite only if already set.
-				if _, ok := parsedFields[field.GetName()]; ok {
-					parsedFields[field.GetName()] = "***stripped***"
+	msg.Range(func(field protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		name := field.TextName()
+		if isCSI1Secret(field) {
+			// Overwrite only if already set.
+			if _, ok := parsedFields[name]; ok {
+				parsedFields[name] = "***stripped***"
+			}
+		} else if field.Kind() == protoreflect.MessageKind && !field.IsMap() {
+			entry := parsedFields[name]
+			if field.Cardinality() == protoreflect.Repeated {
+				l := v.List()
+				// Array of values, like VolumeCapabilities in CreateVolumeRequest.
+				for i, entry := range entry.([]interface{}) {
+					s.strip(entry, l.Get(i).Message())
 				}
-			} else if field.GetType() == protobufdescriptor.FieldDescriptorProto_TYPE_MESSAGE {
-				// When we get here,
-				// the type name is something like ".csi.v1.CapacityRange" (leading dot!)
-				// and looking up "csi.v1.CapacityRange"
-				// returns the type of a pointer to a pointer
-				// to CapacityRange. We need a pointer to such
-				// a value for recursive stripping.
-				typeName := field.GetTypeName()
-				if strings.HasPrefix(typeName, ".") {
-					typeName = typeName[1:]
-				}
-				t := proto.MessageType(typeName)
-				if t == nil || t.Kind() != reflect.Ptr {
-					// Shouldn't happen, but
-					// better check anyway instead
-					// of panicking.
-					continue
-				}
-				v := reflect.New(t.Elem())
-
-				// Recursively strip the message(s) that
-				// the field contains.
-				i := v.Interface()
-				entry := parsedFields[field.GetName()]
-				if slice, ok := entry.([]interface{}); ok {
-					// Array of values, like VolumeCapabilities in CreateVolumeRequest.
-					for _, entry := range slice {
-						s.strip(entry, i)
-					}
-				} else {
-					// Single value.
-					s.strip(entry, i)
-				}
+			} else {
+				// Single value.
+				s.strip(entry, v.Message())
 			}
 		}
-	}
+		return true
+	})
 }
 
 // isCSI1Secret uses the csi.E_CsiSecret extension from CSI 1.0 to
 // determine whether a field contains secrets.
-func isCSI1Secret(field *protobufdescriptor.FieldDescriptorProto) bool {
-	ex, err := proto.GetExtension(field.Options, e_CsiSecret)
-	return err == nil && ex != nil && *ex.(*bool)
-}
-
-// Copied from the CSI 1.0 spec (https://github.com/container-storage-interface/spec/blob/37e74064635d27c8e33537c863b37ccb1182d4f8/lib/go/csi/csi.pb.go#L4520-L4527)
-// to avoid a package dependency that would prevent usage of this package
-// in repos using an older version of the spec.
-//
-// Future revision of the CSI spec must not change this extensions, otherwise
-// they will break filtering in binaries based on the 1.0 version of the spec.
-var e_CsiSecret = &proto.ExtensionDesc{
-	ExtendedType:  (*protobufdescriptor.FieldOptions)(nil),
-	ExtensionType: (*bool)(nil),
-	Field:         1059,
-	Name:          "csi.v1.csi_secret",
-	Tag:           "varint,1059,opt,name=csi_secret,json=csiSecret",
-	Filename:      "github.com/container-storage-interface/spec/csi.proto",
-}
-
-// isCSI03Secret relies on the naming convention in CSI <= 0.3
-// to determine whether a field contains secrets.
-func isCSI03Secret(field *protobufdescriptor.FieldDescriptorProto) bool {
-	return strings.HasSuffix(field.GetName(), "_secrets")
+func isCSI1Secret(desc protoreflect.FieldDescriptor) bool {
+	ex := proto.GetExtension(desc.Options(), csi.E_CsiSecret)
+	return ex.(bool)
 }
