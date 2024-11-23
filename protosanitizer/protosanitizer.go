@@ -48,67 +48,68 @@ type stripSecrets struct {
 }
 
 func (s *stripSecrets) String() string {
-	// First convert to a generic representation. That's less efficient
-	// than using reflect directly, but easier to work with.
-	var parsed interface{}
-	b, err := json.Marshal(s.msg)
-	if err != nil {
-		return fmt.Sprintf("<<json.Marshal %T: %s>>", s.msg, err)
-	}
+	stripped := s.msg
+
+	// also support scalar types like string, int, etc.
 	msg, ok := s.msg.(proto.Message)
-	if !ok {
-		return string(b)
-	}
-	if err := json.Unmarshal(b, &parsed); err != nil {
-		return fmt.Sprintf("<<json.Unmarshal %T: %s>>", s.msg, err)
+	if ok {
+		stripped = stripMessage(msg.ProtoReflect())
 	}
 
-	// Now remove secrets from the generic representation of the message.
-	s.strip(parsed, msg.ProtoReflect())
-
-	// Re-encoded the stripped representation and return that.
-	b, err = json.Marshal(parsed)
+	b, err := json.Marshal(stripped)
 	if err != nil {
 		return fmt.Sprintf("<<json.Marshal %T: %s>>", s.msg, err)
 	}
 	return string(b)
 }
 
-func (s *stripSecrets) strip(parsed interface{}, msg protoreflect.Message) {
-	// The corresponding map in the parsed JSON representation.
-	parsedFields, ok := parsed.(map[string]interface{})
-	if !ok {
-		// Probably nil.
-		return
+func stripSingleValue(field protoreflect.FieldDescriptor, v protoreflect.Value) any {
+	switch field.Kind() {
+	case protoreflect.MessageKind:
+		return stripMessage(v.Message())
+	case protoreflect.EnumKind:
+		return field.Enum().Values().ByNumber(v.Enum()).Name()
+	default:
+		return v.Interface()
 	}
+}
+
+func stripValue(field protoreflect.FieldDescriptor, v protoreflect.Value) any {
+	if field.IsList() {
+		l := v.List()
+		res := make([]any, l.Len())
+		for i := range l.Len() {
+			res[i] = stripSingleValue(field, l.Get(i))
+		}
+		return res
+	} else if field.IsMap() {
+		m := v.Map()
+		res := make(map[string]any, m.Len())
+		m.Range(func(mk protoreflect.MapKey, v protoreflect.Value) bool {
+			res[mk.String()] = stripSingleValue(field.MapValue(), v)
+			return true
+		})
+		return res
+	} else {
+		return stripSingleValue(field, v)
+	}
+}
+
+func stripMessage(msg protoreflect.Message) map[string]any {
+	stripped := make(map[string]any)
 
 	// Walk through all fields and replace those with ***stripped*** that
-	// are marked as secret. This relies on protobuf adding "json:" tags
-	// on each field where the name matches the field name in the protobuf
-	// spec (like volume_capabilities). The field.GetJsonName() method returns
-	// a different name (volumeCapabilities) which we don't use.
+	// are marked as secret.
 	msg.Range(func(field protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		name := field.TextName()
 		if isCSI1Secret(field) {
-			// Overwrite only if already set.
-			if _, ok := parsedFields[name]; ok {
-				parsedFields[name] = "***stripped***"
-			}
-		} else if field.Kind() == protoreflect.MessageKind && !field.IsMap() {
-			entry := parsedFields[name]
-			if field.Cardinality() == protoreflect.Repeated {
-				l := v.List()
-				// Array of values, like VolumeCapabilities in CreateVolumeRequest.
-				for i, entry := range entry.([]interface{}) {
-					s.strip(entry, l.Get(i).Message())
-				}
-			} else {
-				// Single value.
-				s.strip(entry, v.Message())
-			}
+			stripped[name] = "***stripped***"
+		} else {
+			stripped[name] = stripValue(field, v)
 		}
 		return true
 	})
+	return stripped
 }
 
 // isCSI1Secret uses the csi.E_CsiSecret extension from CSI 1.0 to
