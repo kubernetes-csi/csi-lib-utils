@@ -30,9 +30,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/stretchr/testify/require"
@@ -513,7 +513,7 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},
@@ -562,7 +562,7 @@ func TestProbeForever(t *testing.T) {
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},
@@ -573,7 +573,7 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
@@ -587,17 +587,17 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},

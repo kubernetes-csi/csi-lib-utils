@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/proto"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer/test/csitest"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestStripSecrets(t *testing.T) {
