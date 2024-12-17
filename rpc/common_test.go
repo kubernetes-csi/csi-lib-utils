@@ -30,9 +30,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/stretchr/testify/require"
@@ -513,7 +513,7 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},
@@ -562,7 +562,7 @@ func TestProbeForever(t *testing.T) {
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},
@@ -573,7 +573,7 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
@@ -587,17 +587,17 @@ func TestProbeForever(t *testing.T) {
 			probeCalls: []probeCall{
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: false},
+						Ready: &wrapperspb.BoolValue{Value: false},
 					},
 				},
 				{
 					response: &csi.ProbeResponse{
-						Ready: &wrappers.BoolValue{Value: true},
+						Ready: &wrapperspb.BoolValue{Value: true},
 					},
 				},
 			},
@@ -638,6 +638,7 @@ func TestProbeForever(t *testing.T) {
 }
 
 type fakeIdentityServer struct {
+	csi.UnimplementedIdentityServer
 	pluginInfoResponse            *csi.GetPluginInfoResponse
 	getPluginCapabilitiesResponse *csi.GetPluginCapabilitiesResponse
 	err                           error
@@ -671,69 +672,19 @@ func (i *fakeIdentityServer) Probe(context.Context, *csi.ProbeRequest) (*csi.Pro
 }
 
 type fakeControllerServer struct {
+	csi.UnimplementedControllerServer
 	controllerGetCapabilitiesResponse *csi.ControllerGetCapabilitiesResponse
 	err                               error
 }
 
-func (c *fakeControllerServer) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ControllerModifyVolume(ctx context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
 var _ csi.ControllerServer = &fakeControllerServer{}
-
-func (c *fakeControllerServer) CreateVolume(context.Context, *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) DeleteVolume(context.Context, *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ControllerPublishVolume(context.Context, *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ControllerUnpublishVolume(context.Context, *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ValidateVolumeCapabilities(context.Context, *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ListVolumes(context.Context, *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) GetCapacity(context.Context, *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
 
 func (c *fakeControllerServer) ControllerGetCapabilities(context.Context, *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	return c.controllerGetCapabilitiesResponse, c.err
 }
 
-func (c *fakeControllerServer) CreateSnapshot(context.Context, *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) DeleteSnapshot(context.Context, *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ListSnapshots(context.Context, *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeControllerServer) ControllerExpandVolume(context.Context, *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
 type fakeGroupControllerServer struct {
+	csi.UnimplementedGroupControllerServer
 	groupControllerGetCapabilitiesResponse *csi.GroupControllerGetCapabilitiesResponse
 	err                                    error
 }
@@ -742,16 +693,4 @@ var _ csi.GroupControllerServer = &fakeGroupControllerServer{}
 
 func (c *fakeGroupControllerServer) GroupControllerGetCapabilities(context.Context, *csi.GroupControllerGetCapabilitiesRequest) (*csi.GroupControllerGetCapabilitiesResponse, error) {
 	return c.groupControllerGetCapabilitiesResponse, c.err
-}
-
-func (c *fakeGroupControllerServer) CreateVolumeGroupSnapshot(context.Context, *csi.CreateVolumeGroupSnapshotRequest) (*csi.CreateVolumeGroupSnapshotResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeGroupControllerServer) DeleteVolumeGroupSnapshot(context.Context, *csi.DeleteVolumeGroupSnapshotRequest) (*csi.DeleteVolumeGroupSnapshotResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-
-func (c *fakeGroupControllerServer) GetVolumeGroupSnapshot(context.Context, *csi.GetVolumeGroupSnapshotRequest) (*csi.GetVolumeGroupSnapshotResponse, error) {
-	return nil, fmt.Errorf("unimplemented")
 }

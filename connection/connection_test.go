@@ -53,20 +53,6 @@ const (
 	serverSock = "server.sock"
 )
 
-type identityServer struct{}
-
-func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Unimplemented")
-}
-
-func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Unimplemented")
-}
-
-func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Unimplemented")
-}
-
 // startServer creates a gRPC server without any registered services.
 // The returned address can be used to connect to it. The cleanup
 // function stops it. It can be called multiple times.
@@ -458,7 +444,7 @@ func TestConnectMetrics(t *testing.T) {
 		cmmServer := metrics.NewCSIMetricsManagerForPlugin("fake.csi.driver.io")
 		// We have to have a real implementation of the gRPC call, otherwise the metrics
 		// interceptor is not called. The CSI identity service is used because it's simple.
-		addr, stopServer := startServer(t, tmp, &identityServer{}, nil, cmmServer)
+		addr, stopServer := startServer(t, tmp, &csi.UnimplementedIdentityServer{}, nil, cmmServer)
 		defer stopServer()
 
 		cmm := test.cmm
@@ -516,7 +502,7 @@ func TestConnectWithOtelGrpcInterceptorTraces(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	// We have to have a real implementation of the gRPC call, otherwise the trace
 	// interceptor is not called. The CSI identity service is used because it's simple.
-	addr, stopServer := startServer(t, tmp, &identityServer{}, nil, nil)
+	addr, stopServer := startServer(t, tmp, &csi.UnimplementedIdentityServer{}, nil, nil)
 	defer stopServer()
 
 	_, ctx := ktesting.NewTestContext(t)
