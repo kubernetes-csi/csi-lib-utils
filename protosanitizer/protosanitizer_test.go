@@ -148,6 +148,14 @@ func TestStripSecrets(t *testing.T) {
 		{createVolumeFuture,
 			`{"capacity_range":{"required_bytes":1024},"maybe_secret_map":{"1":{"array_secret":"***stripped***"},"2":{"array_secret":"***stripped***"}},"name":"foo","new_secret_int":"***stripped***","seecreets":"***stripped***","volume_capabilities":[{"array_secret":"***stripped***","mount":{"fs_type":"ext4"}},{"array_secret":"***stripped***"}],"volume_content_source":{"nested_secret_field":"***stripped***","volume":{"oneof_secret_field":"***stripped***","volume_id":"abc"}}}`,
 		},
+		{&csi.CreateVolumeRequest{
+			VolumeCapabilities: []*csi.VolumeCapability{{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					// Test for unknown enum value
+					Mode: csi.VolumeCapability_AccessMode_Mode(12345),
+				},
+			}},
+		}, `{"volume_capabilities":[{"access_mode":{"mode":12345}}]}`},
 	}
 
 	// Message from revised spec as received by a sidecar based on the current spec.
