@@ -40,7 +40,7 @@ const (
 	defaultRenewDeadline = 10 * time.Second
 	defaultRetryPeriod   = 5 * time.Second
 
-	defaultReleaseOnCancel = true
+	defaultReleaseOnCancel = false
 
 	DefaultHealthCheckTimeout = 20 * time.Second
 
