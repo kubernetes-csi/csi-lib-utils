@@ -40,7 +40,7 @@ const (
 	defaultRenewDeadline = 10 * time.Second
 	defaultRetryPeriod   = 5 * time.Second
 
-	defaultReleaseOnCancel = false
+	defaultReleaseOnCancel = true
 
 	DefaultHealthCheckTimeout = 20 * time.Second
 
@@ -77,6 +77,8 @@ type leaderElection struct {
 	ctx context.Context
 
 	clientset kubernetes.Interface
+
+	labels map[string]string
 }
 
 // NewLeaderElection returns the default & preferred leader election type
@@ -120,6 +122,10 @@ func (l *leaderElection) WithRetryPeriod(retryPeriod time.Duration) {
 
 func (l *leaderElection) WithReleaseOnCancel(releaseOnCancel bool) {
 	l.releaseOnCancel = releaseOnCancel
+}
+
+func (l *leaderElection) WithLabels(labels map[string]string) {
+	l.labels = labels
 }
 
 // WithContext Add context
@@ -176,8 +182,7 @@ func (l *leaderElection) Run() error {
 		Identity:      sanitizeName(l.identity),
 		EventRecorder: eventRecorder,
 	}
-
-	lock, err := resourcelock.New(l.resourceLock, l.namespace, sanitizeName(l.lockName), l.clientset.CoreV1(), l.clientset.CoordinationV1(), rlConfig)
+	lock, err := resourcelock.NewWithLabels(l.resourceLock, l.namespace, sanitizeName(l.lockName), l.clientset.CoreV1(), l.clientset.CoordinationV1(), rlConfig, l.labels)
 	if err != nil {
 		return err
 	}
