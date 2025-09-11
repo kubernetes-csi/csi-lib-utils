@@ -124,6 +124,7 @@ func (l *leaderElection) WithReleaseOnCancel(releaseOnCancel bool) {
 	l.releaseOnCancel = releaseOnCancel
 }
 
+// WithLabels adds labels to the lease object when this instance becomes leader
 func (l *leaderElection) WithLabels(labels map[string]string) {
 	l.labels = labels
 }
