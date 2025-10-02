@@ -44,6 +44,10 @@ type SidecarConfiguration struct {
 
 	KubeAPIQPS   float64
 	KubeAPIBurst int
+
+	HttpEndpoint string
+	MetricsAddress string
+	MetricsPath string
 }
 
 var Configuration = SidecarConfiguration{}
@@ -63,6 +67,9 @@ func RegisterCommonFlags(flags *flag.FlagSet) {
 	flags.Var(&Configuration.LeaderElectionLabels, "leader-election-labels", "List of labels to add to lease when given replica becomes leader. Formatted as a comma seperated list of key:value labels. Example: 'my-label:my-value,my-second-label:my-second-value'")
 	flags.Float64Var(&Configuration.KubeAPIQPS, "kube-api-qps", 5, "QPS to use while communicating with the kubernetes apiserver. Defaults to 5.0.")
 	flags.IntVar(&Configuration.KubeAPIBurst, "kube-api-burst", 10, "Burst to use while communicating with the kubernetes apiserver. Defaults to 10.")
+	flags.StringVar(&Configuration.HttpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
+	flags.StringVar(&Configuration.MetricsAddress, "metrics-address", "", "(deprecated) The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
+	flag.StringVar(&Configuration.MetricsPath, "metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
 }
 
 
@@ -78,7 +85,7 @@ func (sm *stringMap) Set(value string) error {
 	for _, i := range items {
 		label := strings.Split(i, ":")
 		if len(label) != 2 {
-			return fmt.Errorf("malformed item in list of labels", "arg", i)
+			return fmt.Errorf("malformed item in list of labels: %s", i)
 		}
 		outMap[label[0]] = label[1]
 	}
