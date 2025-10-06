@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,46 +19,37 @@ package standardflags
 import (
 	"flag"
 	"fmt"
-	"time"
 	"strings"
+	"time"
 )
-
 
 type SidecarConfiguration struct {
 	ShowVersion bool
 
-	Master     string
 	KubeConfig string
 	CSIAddress string
-	Resync     time.Duration
-
-	RetryIntervalStart time.Duration
-	RetryIntervalMax   time.Duration
 
 	LeaderElection              bool
 	LeaderElectionNamespace     string
 	LeaderElectionLeaseDuration time.Duration
 	LeaderElectionRenewDeadline time.Duration
 	LeaderElectionRetryPeriod   time.Duration
-	LeaderElectionLabels		stringMap
+	LeaderElectionLabels        stringMap
 
 	KubeAPIQPS   float64
 	KubeAPIBurst int
 
-	HttpEndpoint string
+	HttpEndpoint   string
 	MetricsAddress string
-	MetricsPath string
+	MetricsPath    string
 }
 
 var Configuration = SidecarConfiguration{}
 
 func RegisterCommonFlags(flags *flag.FlagSet) {
 	flags.BoolVar(&Configuration.ShowVersion, "version", false, "Show version.")
-	flags.StringVar(&Configuration.Master, "master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the provisioner is being run out of cluster.")
 	flags.StringVar(&Configuration.KubeConfig, "kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	flags.StringVar(&Configuration.CSIAddress, "csi-address", "/run/csi/socket", "The gRPC endpoint for Target CSI Volume.")
-	flags.DurationVar(&Configuration.RetryIntervalStart, "retry-interval-start", time.Second, "Initial retry interval of failed create volume or deletion. It doubles with each failure, up to retry-interval-max.")
-	flags.DurationVar(&Configuration.RetryIntervalMax, "retry-interval-max", 5*time.Minute, "Maximum retry interval of failed create volume or deletion.")
 	flags.BoolVar(&Configuration.LeaderElection, "leader-election", false, "Enable leader election.")
 	flags.StringVar(&Configuration.LeaderElectionNamespace, "leader-election-namespace", "", "Namespace where the leader election resource lives. Defaults to the pod namespace if not set.")
 	flags.DurationVar(&Configuration.LeaderElectionLeaseDuration, "leader-election-lease-duration", 15*time.Second, "Duration, in seconds, that non-leader candidates will wait to force acquire leadership. Defaults to 15 seconds.")
@@ -71,7 +62,6 @@ func RegisterCommonFlags(flags *flag.FlagSet) {
 	flags.StringVar(&Configuration.MetricsAddress, "metrics-address", "", "(deprecated) The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
 	flag.StringVar(&Configuration.MetricsPath, "metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
 }
-
 
 type stringMap map[string]string
 
@@ -91,4 +81,3 @@ func (sm *stringMap) Set(value string) error {
 	}
 	return nil
 }
-
