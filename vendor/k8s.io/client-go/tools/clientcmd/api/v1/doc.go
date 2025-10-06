@@ -1,5 +1,9 @@
+<<<<<<<< HEAD:vendor/k8s.io/client-go/tools/clientcmd/api/v1/doc.go
 /*
 Copyright 2015 The Kubernetes Authors.
+========
+Copyright 2011-2016 Canonical Ltd.
+>>>>>>>> master:vendor/go.yaml.in/yaml/v3/NOTICE
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,6 +16,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+<<<<<<<< HEAD:vendor/k8s.io/client-go/tools/clientcmd/api/v1/doc.go
 */
 
 // +k8s:conversion-gen=k8s.io/client-go/tools/clientcmd/api
@@ -19,3 +24,5 @@ limitations under the License.
 // +k8s:defaulter-gen=Kind
 
 package v1
+========
+>>>>>>>> master:vendor/go.yaml.in/yaml/v3/NOTICE
