@@ -229,7 +229,7 @@ func RunWithLeaderElection(
 	logger := klog.FromContext(ctx)
 
 	if !opts.LeaderElection {
-		run(klog.NewContext(context.Background(), logger))
+		run(ctx)
 	} else {
 		// Create a new clientset for leader election. When the attacher
 		// gets busy and its client gets throttled, the leader election
