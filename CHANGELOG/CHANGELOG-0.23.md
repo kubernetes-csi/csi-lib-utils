@@ -1,3 +1,34 @@
+# Release notes for v0.23.1
+
+# Changelog since v0.23.0
+
+## Changes by Kind
+
+### Other (Cleanup or Flake)
+
+- Removed deprecated OpenTelemetry call and bumped OpenTelemetry to v1.38 to be compatible with Kubernetes 1.35 deps. ([#205](https://github.com/kubernetes-csi/csi-lib-utils/pull/205), [@jsafrane](https://github.com/jsafrane))
+- Updated help text of `--csi-address` command line argument. ([#206](https://github.com/kubernetes-csi/csi-lib-utils/pull/206), [@jsafrane](https://github.com/jsafrane))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/go-logr/logr: [v1.4.2 → v1.4.3](https://github.com/go-logr/logr/compare/v1.4.2...v1.4.3)
+- github.com/rogpeppe/go-internal: [v1.13.1 → v1.14.1](https://github.com/rogpeppe/go-internal/compare/v1.13.1...v1.14.1)
+- github.com/stretchr/testify: [v1.10.0 → v1.11.1](https://github.com/stretchr/testify/compare/v1.10.0...v1.11.1)
+- go.opentelemetry.io/auto/sdk: v1.1.0 → v1.2.1
+- go.opentelemetry.io/otel/metric: v1.35.0 → v1.38.0
+- go.opentelemetry.io/otel/trace: v1.35.0 → v1.38.0
+- go.opentelemetry.io/otel: v1.35.0 → v1.38.0
+- k8s.io/api: v0.34.1 → v0.34.2
+- k8s.io/apimachinery: v0.34.1 → v0.34.2
+- k8s.io/client-go: v0.34.1 → v0.34.2
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.23.0
 
 # Changelog since v0.22.0
