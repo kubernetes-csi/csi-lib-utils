@@ -1,3 +1,45 @@
+# Release notes for v0.23.2
+
+# Changelog since v0.23.1
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Fixed crash when parsing cmdline option --leader-election-labels`. ([#209](https://github.com/kubernetes-csi/csi-lib-utils/pull/209), [@DerekFrank](https://github.com/DerekFrank))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+ttps://github.com/kubernetes-csi/csi-lib-utils/pull/206), [@jsafrane](https://github.com/jsafrane))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/go-logr/logr: [v1.4.2 → v1.4.3](https://github.com/go-logr/logr/compare/v1.4.2...v1.4.3)
+- github.com/rogpeppe/go-internal: [v1.13.1 → v1.14.1](https://github.com/rogpeppe/go-internal/compare/v1.13.1...v1.14.1)
+- github.com/stretchr/testify: [v1.10.0 → v1.11.1](https://github.com/stretchr/testify/compare/v1.10.0...v1.11.1)
+- go.opentelemetry.io/auto/sdk: v1.1.0 → v1.2.1
+- go.opentelemetry.io/otel/metric: v1.35.0 → v1.38.0
+- go.opentelemetry.io/otel/trace: v1.35.0 → v1.38.0
+- go.opentelemetry.io/otel: v1.35.0 → v1.38.0
+- k8s.io/api: v0.34.1 → v0.34.2
+- k8s.io/apimachinery: v0.34.1 → v0.34.2
+- k8s.io/client-go: v0.34.1 → v0.34.2
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v0.23.1
 
 # Changelog since v0.23.0
