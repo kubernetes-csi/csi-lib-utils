@@ -26,6 +26,9 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/testutil"
 )
@@ -532,8 +535,67 @@ func TestRegisterToServer_Noop(t *testing.T) {
 		csi_sidecar_operations_seconds_count{driver_name="fake.csi.driver.io",grpc_status_code="OK",method_name="/csi.v1.Controller/ControllerGetCapabilities"} 1
 	`
 
-	if err := VerifyMetricsMatch(expectedMetrics, actualMetrics, ProcessStartTimeMetric); err != nil {
-		t.Fatalf("Metrics returned by end point do not match expectation: %v", err)
+	for _, wantLine := range strings.Split(strings.TrimSpace(expectedMetrics), "\n") {
+		wantLine = strings.TrimSpace(wantLine)
+		if wantLine == "" || strings.HasPrefix(wantLine, "#") {
+			continue
+		}
+		if !strings.Contains(actualMetrics, wantLine) {
+			t.Fatalf("expected CSI metric line missing from endpoint output:\r\nwant: %q\r\ngot:\r\n%s", wantLine, actualMetrics)
+		}
+	}
+}
+
+// TestRegisterToServer_ServesClientGoMetrics verifies that metrics manager
+// serves additional Go & Kubernetes metrics by default.
+func TestRegisterToServer_ServesClientGoMetrics(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+	if err != nil {
+		t.Fatalf("Failed to build client-go clientset: %v", err)
+	}
+
+	cmm := NewCSIMetricsManagerForSidecar("fake.csi.driver.io" /* driverName */)
+	mux := http.NewServeMux()
+	cmm.RegisterToServer(mux, "/metrics")
+
+	// Load the lazily-registered client-go metrics
+	_, _ = clientset.Discovery().ServerVersion()
+	wq := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{Name: "csi-lib-utils-test"},
+	)
+	wq.Add("item")
+
+	request := httptest.NewRequest("GET", "/metrics", strings.NewReader(""))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, request)
+	resp := rec.Result()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("/metrics response status not 200. Response was: %+v", resp)
+	}
+
+	contentBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to parse metrics response.  Response was: %+v Error: %v", resp, err)
+	}
+	actualMetrics := string(contentBytes)
+
+	for _, want := range []string{
+		"go_goroutines",              // Go runtime collector
+		"process_start_time_seconds", // process collector
+		"kubernetes_build_info",      // version adapter
+		"rest_client_requests_total", // client-go rest adapter (recorded above)
+		"workqueue_adds_total",       // client-go workqueue adapter (recorded above)
+	} {
+		if !strings.Contains(actualMetrics, want) {
+			t.Errorf("expected %q to be served via legacyregistry.DefaultGatherer, but it was absent from:\r\n%s", want, actualMetrics)
+		}
 	}
 }
 
