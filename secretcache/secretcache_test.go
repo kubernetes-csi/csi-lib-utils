@@ -19,6 +19,8 @@ package secretcache
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,6 +32,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
@@ -533,6 +536,268 @@ func TestNoSecondReadAfterConcurrentRead(t *testing.T) {
 	assert.EqualValues(t, 1, client.calls.Load())
 }
 
+// versionedClient returns, as data, how many times that Secret has been read.
+// Each of the first blocked reads of the Secret "a" signals started and waits for its release.
+type versionedClient struct {
+	*fakeClient
+	started []chan struct{}
+	release []func()
+}
+
+func newVersionedClient(t *testing.T, blocked int) *versionedClient {
+	v := &versionedClient{}
+	var released []chan struct{}
+	for i := 0; i < blocked; i++ {
+		ch := make(chan struct{})
+		release := sync.OnceFunc(func() { close(ch) })
+		// A failing test must not leave reads blocked.
+		t.Cleanup(release)
+		v.started = append(v.started, make(chan struct{}))
+		v.release = append(v.release, release)
+		released = append(released, ch)
+	}
+	var mu sync.Mutex
+	reads := map[string]int{}
+	v.fakeClient = &fakeClient{get: func(_ context.Context, _, name string) (*v1.Secret, error) {
+		mu.Lock()
+		reads[name]++
+		n := reads[name]
+		mu.Unlock()
+		if name == "a" && n <= blocked {
+			close(v.started[n-1])
+			<-released[n-1]
+		}
+		return secret(map[string]string{"version": strconv.Itoa(n)}), nil
+	}}
+	return v
+}
+
+type result struct {
+	version string
+	err     error
+}
+
+// getAsync reports to a channel because only the test goroutine may fail the test.
+func getAsync(c *Cache, name string) <-chan result {
+	ch := make(chan result, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		got, err := c.Get(ctx, ref(name))
+		ch <- result{got["version"], err}
+	}()
+	return ch
+}
+
+func receive[T any](t *testing.T, ch <-chan T) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out")
+		panic("unreachable")
+	}
+}
+
+func awaitVersion(t *testing.T, ch <-chan result) string {
+	t.Helper()
+	r := receive(t, ch)
+	require.NoError(t, r.err)
+	return r.version
+}
+
+func version(t *testing.T, c *Cache, name string) string {
+	t.Helper()
+	return awaitVersion(t, getAsync(c, name))
+}
+
+func TestInvalidateDropsOnlyThatSecret(t *testing.T) {
+	client := newVersionedClient(t, 0)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+	assert.Equal(t, "1", version(t, c, "a"))
+	assert.Equal(t, "1", version(t, c, "b"))
+
+	c.Invalidate(ref("a"))
+	assert.Equal(t, "2", version(t, c, "a"))
+	assert.Equal(t, "2", version(t, c, "a"), "the new data must be cached")
+	assert.Equal(t, "1", version(t, c, "b"))
+}
+
+func TestInvalidateDuringRead(t *testing.T) {
+	client := newVersionedClient(t, 1)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+
+	old := getAsync(c, "a")
+	receive(t, client.started[0])
+	c.Invalidate(ref("a"))
+
+	assert.Equal(t, "2", version(t, c, "a"), "must not join the read started before Invalidate")
+	client.release[0]()
+	assert.Equal(t, "1", awaitVersion(t, old), "a caller already waiting keeps its result")
+	assert.Equal(t, "2", version(t, c, "a"), "the old read must not replace the newer data")
+}
+
+func TestInvalidatedReadIsNotCached(t *testing.T) {
+	client := newVersionedClient(t, 1)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+
+	old := getAsync(c, "a")
+	receive(t, client.started[0])
+	c.Invalidate(ref("a"))
+	client.release[0]()
+	awaitVersion(t, old)
+
+	assert.Equal(t, "2", version(t, c, "a"))
+}
+
+func TestOldReadFinishesWhileNewerIsInFlight(t *testing.T) {
+	client := newVersionedClient(t, 2)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+
+	old := getAsync(c, "a")
+	receive(t, client.started[0])
+	c.Invalidate(ref("a"))
+	newer := getAsync(c, "a")
+	receive(t, client.started[1])
+
+	client.release[0]()
+	awaitVersion(t, old)
+	_, cached := c.lru.Get(types.NamespacedName{Namespace: "ns", Name: "a"})
+	assert.False(t, cached, "the old read must not be stored")
+
+	client.release[1]()
+	awaitVersion(t, newer)
+	assert.Equal(t, "2", version(t, c, "a"), "the newer read must be cached")
+}
+
+// A read that was requested before Invalidate but has not reached the API server yet
+// must not take over from the read that replaced it.
+func TestInvalidateBeforeReadStarts(t *testing.T) {
+	client := newVersionedClient(t, 0)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+	paused := make(chan struct{})
+	resume := make(chan struct{})
+	release := sync.OnceFunc(func() { close(resume) })
+	t.Cleanup(release)
+	var once sync.Once
+	c.beforeRead = func() {
+		first := false
+		once.Do(func() { first = true })
+		if first {
+			close(paused)
+			<-resume
+		}
+	}
+
+	old := getAsync(c, "a")
+	receive(t, paused)
+	c.Invalidate(ref("a"))
+	release()
+	assert.Equal(t, "1", awaitVersion(t, old))
+
+	assert.Equal(t, "2", version(t, c, "a"), "the invalidated read must not be cached")
+}
+
+func TestInvalidateDoesNotAffectOtherReads(t *testing.T) {
+	client := newVersionedClient(t, 1)
+	c, _ := newTestCache(t, client.fakeClient, time.Minute, 10)
+
+	pending := getAsync(c, "a")
+	receive(t, client.started[0])
+	c.Invalidate(ref("b"))
+	client.release[0]()
+	awaitVersion(t, pending)
+
+	assert.Equal(t, "1", version(t, c, "a"), "must still be cached")
+	assert.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.pending) == 0
+	}, 10*time.Second, time.Millisecond, "finished reads must not be tracked")
+}
+
+func TestInvalidateWithNothingToDrop(t *testing.T) {
+	for _, ttl := range []time.Duration{0, time.Minute} {
+		client := staticClient(nil)
+		c, _ := newTestCache(t, client, ttl, 1)
+		c.Invalidate(nil)
+		c.Invalidate(ref("never-read"))
+		c.Invalidate(&v1.SecretReference{})
+		assert.EqualValues(t, 0, client.calls.Load())
+	}
+}
+
+// Under load, with Secrets rotated and invalidated mid-run, no Get may return data older than the
+// last Invalidate that returned before it, and each Invalidate may cost at most one extra read.
+func TestLoadWithInvalidation(t *testing.T) {
+	const requests, workers = 1500, 100
+	for _, secrets := range []int{1, 10, 20, 50} {
+		for _, rotateEvery := range []int{0, 25} {
+			t.Run(fmt.Sprintf("secrets=%d/rotateEvery=%d", secrets, rotateEvery), func(t *testing.T) {
+				current := make([]atomic.Int64, secrets) // version in the API server
+				floor := make([]atomic.Int64, secrets)   // oldest version a new Get may return
+				client := &fakeClient{get: func(_ context.Context, _, name string) (*v1.Secret, error) {
+					i, err := strconv.Atoi(name)
+					if err != nil {
+						return nil, err
+					}
+					v := current[i].Load()
+					// The answer is on its way while rotations happen.
+					time.Sleep(2 * time.Millisecond)
+					return secret(map[string]string{"version": strconv.FormatInt(v, 10)}), nil
+				}}
+				c, _ := newTestCache(t, client, time.Hour, 128)
+				get := func(i int) int64 {
+					got, err := c.Get(context.Background(), ref(strconv.Itoa(i)))
+					if !assert.NoError(t, err) {
+						return -1
+					}
+					v, err := strconv.ParseInt(got["version"], 10, 64)
+					assert.NoError(t, err)
+					return v
+				}
+
+				var next, rotations, stale atomic.Int64
+				var wg sync.WaitGroup
+				for w := 0; w < workers; w++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						for n := int(next.Add(1)); n <= requests; n = int(next.Add(1)) {
+							i := n % secrets
+							if rotateEvery > 0 && n%rotateEvery == 0 {
+								v := current[i].Add(1)
+								c.Invalidate(ref(strconv.Itoa(i)))
+								for old := floor[i].Load(); old < v && !floor[i].CompareAndSwap(old, v); old = floor[i].Load() {
+								}
+								rotations.Add(1)
+							}
+							oldest := floor[i].Load()
+							if get(i) < oldest {
+								stale.Add(1)
+							}
+						}
+					}()
+				}
+				wg.Wait()
+
+				reads := int64(client.calls.Load())
+				assert.Zero(t, stale.Load(), "stale results")
+				assert.LessOrEqual(t, reads, int64(secrets)+rotations.Load(), "API reads")
+				if rotateEvery == 0 {
+					assert.EqualValues(t, secrets, reads, "API reads")
+				}
+				for i := range current {
+					assert.Equal(t, current[i].Load(), get(i), "old data left in the cache for Secret %d", i)
+				}
+				assert.Empty(t, c.pending)
+				t.Logf("requests=%d invalidations=%d apiReads=%d stale=%d", requests, rotations.Load(), reads, stale.Load())
+			})
+		}
+	}
+}
+
 func TestRace(t *testing.T) {
 	client := staticClient(map[string]string{"k": "v"})
 	c, clock := newTestCache(t, client, time.Second, 3)
@@ -549,6 +814,9 @@ func TestRace(t *testing.T) {
 				}
 				assert.Equal(t, "v", got["k"])
 				got["x"] = "y"
+				if j%7 == 0 {
+					c.Invalidate(ref(name))
+				}
 				if j%50 == 0 {
 					clock.Add(time.Second)
 				}

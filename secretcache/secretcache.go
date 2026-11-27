@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -48,8 +49,15 @@ type Cache struct {
 	// lru is nil when the cache is disabled.
 	lru   *utilcache.LRUExpireCache
 	group singleflight.Group
+	// mu guards pending and keeps it in step with group. It also makes storing and Invalidate atomic.
+	mu sync.Mutex
+	// pending holds the token of the shared read that group currently has for each Secret.
+	// Only that read may be stored.
+	pending map[types.NamespacedName]*byte
 	// afterMiss is a test hook called between a cache miss and joining the group.
 	afterMiss func()
+	// beforeRead is a test hook called when a shared read starts.
+	beforeRead func()
 }
 
 // New returns a Cache that reads Secrets with client. Shared reads are cancelled with lifetime.
@@ -65,7 +73,7 @@ func newCache(lifetime context.Context, client kubernetes.Interface, ttl time.Du
 	if client == nil {
 		return nil, errors.New("client must not be nil")
 	}
-	c := &Cache{client: client, lifetime: lifetime, ttl: ttl, timeout: fetchTimeout}
+	c := &Cache{client: client, lifetime: lifetime, ttl: ttl, timeout: fetchTimeout, pending: map[types.NamespacedName]*byte{}}
 	if ttl <= 0 {
 		return c, nil
 	}
@@ -81,8 +89,9 @@ func newCache(lifetime context.Context, client kubernetes.Interface, ttl time.Du
 }
 
 // Get returns a copy of the data of the Secret ref points to, or nil if ref is nil.
-// ctx only bounds how long this caller waits; the read itself runs on the lifetime context
-// and its result is cached even if every caller gave up.
+// With caching enabled, ctx only bounds how long this caller waits; the read itself runs on the
+// lifetime context, and a successful result is cached even if every caller gave up, unless
+// Invalidate was called for that Secret meanwhile. With caching disabled, the read uses ctx.
 func (c *Cache) Get(ctx context.Context, ref *v1.SecretReference) (map[string]string, error) {
 	if ref == nil {
 		return nil, nil
@@ -106,13 +115,31 @@ func (c *Cache) Get(ctx context.Context, ref *v1.SecretReference) (map[string]st
 	if c.afterMiss != nil {
 		c.afterMiss()
 	}
+	// The token is assigned here and not in the read, which may start only after an Invalidate.
+	c.mu.Lock()
+	// A read started for data that is already cached would call the API if Invalidate came first.
+	if data, ok := c.lookup(key); ok {
+		c.mu.Unlock()
+		return maps.Clone(data), nil
+	}
+	token := c.pending[key]
+	if token == nil {
+		// Each token has its own address, which a zero-size type would not guarantee.
+		token = new(byte)
+		c.pending[key] = token
+	}
 	ch := c.group.DoChan(key.String(), func() (any, error) {
+		if c.beforeRead != nil {
+			c.beforeRead()
+		}
+		defer c.finish(key, token)
 		// Another read may have finished since our lookup; do not read again and restart the TTL.
 		if data, ok := c.lookup(key); ok {
 			return data, nil
 		}
-		return c.fetchAndStore(key)
+		return c.fetchAndStore(key, token)
 	})
+	c.mu.Unlock()
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -124,8 +151,37 @@ func (c *Cache) Get(ctx context.Context, ref *v1.SecretReference) (map[string]st
 	}
 }
 
+// Invalidate drops the cached data of the Secret ref points to, for example after a CSI driver
+// rejected the credentials. A Get called after Invalidate returns does not get data from before it.
+// A read already in progress is not cached, but callers already waiting for it still get its result.
+//
+// The Secret may not have changed yet: unchanged data is then cached again for the ttl.
+// Invalidate drops whatever is cached, even data newer than what the caller used, and the next Get
+// costs an API read, so back off when retrying. It does nothing if ref is nil or the cache is disabled.
+func (c *Cache) Invalidate(ref *v1.SecretReference) {
+	if ref == nil || c.lru == nil {
+		return
+	}
+	key := types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.pending, key)
+	c.lru.Remove(key)
+	c.group.Forget(key.String())
+}
+
+// finish retires the shared read that owns token, unless Invalidate already did.
+func (c *Cache) finish(key types.NamespacedName, token *byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.pending[key] == token {
+		delete(c.pending, key)
+		c.group.Forget(key.String())
+	}
+}
+
 // fetchAndStore is the shared read. Its result is shared by all waiters, the cache keeps its own copy.
-func (c *Cache) fetchAndStore(key types.NamespacedName) (map[string]string, error) {
+func (c *Cache) fetchAndStore(key types.NamespacedName, token *byte) (map[string]string, error) {
 	if err := c.lifetime.Err(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrStopped, err)
 	}
@@ -142,7 +198,12 @@ func (c *Cache) fetchAndStore(key types.NamespacedName) (map[string]string, erro
 		}
 		return nil, err
 	}
-	c.lru.Add(key, maps.Clone(data), c.ttl)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Invalidate removes the token; this read may then be older than the change it was called for.
+	if c.pending[key] == token {
+		c.lru.Add(key, maps.Clone(data), c.ttl)
+	}
 	return data, nil
 }
 
